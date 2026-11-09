@@ -27,6 +27,7 @@ jobs:
           java-version: 21
       # ubuntu-latest には Android SDK がプリインストール済み（ANDROID_HOME）
       - run: echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+      - uses: gradle/actions/setup-gradle@v4
       - run: npm ci
       - run: npm run build
       - run: npx cap sync android
@@ -55,7 +56,12 @@ jobs:
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon -PversionCode=${{ github.run_number }} -PversionName=1.0.${{ github.run_number }}
+          # Gradle本体のダウンロードが一時的に失敗することがあるため再試行する
+          for i in 1 2 3; do
+            ./gradlew assembleRelease --no-daemon -PversionCode=${{ github.run_number }} -PversionName=1.0.${{ github.run_number }} && exit 0
+            echo "retry $i"; sleep 20
+          done
+          exit 1
       - run: cp android/app/build/outputs/apk/release/app-release.apk exif-frame-maker.apk
       - uses: actions/upload-artifact@v4
         with:
