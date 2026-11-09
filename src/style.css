@@ -326,7 +326,6 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 
 /* マイプリセット */
 .my-presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.my-presets:empty { display: none; }
 .preset.my { position: relative; }
 .mp-more {
   position: absolute; top: 2px; right: 2px; width: 24px; height: 24px; border-radius: 50%;
@@ -362,3 +361,14 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
   .font-roles { grid-template-columns: 1fr; }
   .font-tools { font-size: 14px; gap: 10px 18px; }
 }
+
+/* マイプリセット：＋の枠・読込・書き出し */
+.preset.mp-add { border-style: dashed; border-color: var(--accent); color: var(--accent); }
+.preset.mp-add .pv { background: none; }
+.preset.mp-add .pv b { font-size: 34px; font-weight: 400; line-height: 1; }
+.preset.mp-add span { color: var(--accent); font-weight: 700; }
+.my-actions { justify-content: flex-end; }
+.mp-load { cursor: pointer; font-weight: 700; }
+.mp-export { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
+.mp-export button { width: 100%; padding: 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); cursor: pointer; font-weight: 600; color: inherit; }
+@media (max-width: 900px) { .mp-load { font-size: 15px; padding: 6px 4px; } .mp-export button { min-height: 46px; font-size: 15px; } }

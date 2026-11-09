@@ -59,11 +59,7 @@
           <div class="my-presets" id="myPresets"></div>
           <p class="hint" id="myPresetsEmpty">よく使う設定（レイアウト・色・文字・クレジットなど）を保存して、ワンタップで呼び出せます。</p>
           <div class="my-actions">
-            <button id="mpSave" class="btn-save">＋ 今の設定を保存</button>
-            <span class="my-io">
-              <button id="mpExport" class="link">書き出し</button>
-              <label class="link">読み込み<input type="file" id="mpImport" accept="application/json,.json" hidden /></label>
-            </span>
+            <label class="link mp-load">読込<input type="file" id="mpImport" accept="application/json,.json" hidden /></label>
           </div>
         </details>
 
@@ -201,6 +197,10 @@
             <button id="saveAll">すべて個別に保存</button>
               </div>
           <p class="progress" id="progress"></p>
+          <div class="mp-export">
+            <button id="mpExport">マイプリセットを書き出し</button>
+            <p class="hint">保存したマイプリセットをファイル（JSON）にまとめます。バックアップや別の端末への移行に使えます。読み込みはレイアウト画面のマイプリセット欄の「読込」から。</p>
+          </div>
           <div class="field">
             <span>形式</span>
             <select id="format">

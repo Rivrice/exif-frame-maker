@@ -368,6 +368,13 @@ function renderMyPresets() {
     });
     box.appendChild(b);
   }
+  // 一覧の最後に「＋」（今の設定を保存）
+  const add = document.createElement('button');
+  add.className = 'preset mp-add';
+  add.title = '今の設定をマイプリセットに保存';
+  add.innerHTML = '<div class="pv"><b>＋</b></div><span>今の設定を保存</span>';
+  add.addEventListener('click', savePresetFromCurrent);
+  box.appendChild(add);
 }
 
 function markActivePreset() {
@@ -413,7 +420,6 @@ function closeMpSheet() {
 }
 
 function bindMyPresets() {
-  $('#mpSave').addEventListener('click', savePresetFromCurrent);
   $('#mpApply').addEventListener('click', () => {
     if (mpTarget) applyPreset(mpTarget);
     closeMpSheet();
