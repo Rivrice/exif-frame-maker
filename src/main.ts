@@ -30,11 +30,11 @@ import './style.css';
 import { zipSync } from 'fflate';
 import { ACCEPT, decodeFile, makeThumb } from './decode';
 import { buildInfo } from './draw';
-import { LAYOUTS, getLayout } from './layouts';
+import { CORNER_KEYS, LAYOUTS, getLayout } from './layouts';
 import { getLogo, logoOrigin, removeUserLogo, setUserLogo } from './logos';
 import { MAKERS } from './makers';
 import { IS_IOS, canvasToBlob, preloadFonts, renderCollage, renderOutput, renderPreview } from './render';
-import type { Colors, ExifInfo, PhotoItem, Settings } from './types';
+import type { Colors, Corner, CornerItem, CreditPosition, ExifInfo, PhotoItem, Settings } from './types';
 import { IS_NATIVE, nativeSave, nativeShare } from './native';
 
 // ---------- 状態 ----------
@@ -50,6 +50,8 @@ const DEFAULTS: Settings = {
   aspect: 'auto',
   show: { logo: true, model: true, lens: true, focal: true, aperture: true, shutter: true, iso: true, date: true, artist: true },
   author: '',
+  credit: { scale: 1, position: 'auto', color: 'light' },
+  corners: { tl: 'makerModel', tr: 'date', bl: 'params', br: 'credit' },
   mode: 'single',
   collage: { type: 'justified', width: 4000, rowHeight: 30, cols: 3, gap: 12, bg: '#eeeeee' },
   export: { format: 'image/jpeg', quality: 0.92, maxEdge: 0 },
@@ -65,6 +67,8 @@ function loadSettings(): Settings {
         colors: { ...DEFAULTS.colors, ...raw.colors },
         show: { ...DEFAULTS.show, ...raw.show },
         collage: { ...DEFAULTS.collage, ...raw.collage },
+        credit: { ...DEFAULTS.credit, ...raw.credit },
+        corners: { ...DEFAULTS.corners, ...raw.corners },
         export: { ...DEFAULTS.export, ...raw.export },
       };
     }
@@ -419,6 +423,7 @@ function buildStaticControls() {
     });
   };
   bindRange('textScale', () => settings.textScale, (v) => (settings.textScale = v), (v) => `${Math.round(v * 100)}%`);
+  bindRange('creditScale', () => settings.credit.scale, (v) => (settings.credit.scale = v), (v) => `${Math.round(v * 100)}%`);
   bindRange('borderScale', () => settings.borderScale, (v) => (settings.borderScale = v), (v) => `${Math.round(v * 100)}%`);
   bindRange('quality', () => settings.export.quality, (v) => (settings.export.quality = v), (v) => `${Math.round(v * 100)}`, false);
   bindRange('rowHeight', () => settings.collage.rowHeight, (v) => (settings.collage.rowHeight = v), (v) => `${v}%`, false);
@@ -444,6 +449,38 @@ function buildStaticControls() {
     settings.collage.bg = (e.target as HTMLInputElement).value;
     update(false);
   });
+  // クレジットの位置
+  $$('#creditPos [data-pos]').forEach((b) =>
+    b.addEventListener('click', () => {
+      settings.credit.position = b.dataset.pos as CreditPosition;
+      update();
+    }),
+  );
+  bindSelect('creditColor', (v) => (settings.credit.color = v as Settings['credit']['color']));
+
+  // 四隅の項目
+  const grid = $('#cornerGrid');
+  const CORNER_LABEL: Record<Corner, string> = { tl: '左上', tr: '右上', bl: '左下', br: '右下' };
+  const ITEMS: [CornerItem, string][] = [
+    ['', 'なし'],
+    ['makerModel', 'メーカー名＋機種'],
+    ['maker', 'メーカー名'],
+    ['model', '機種'],
+    ['lens', 'レンズ'],
+    ['params', '撮影設定'],
+    ['date', '撮影日時'],
+    ['credit', 'クレジット'],
+  ];
+  for (const k of CORNER_KEYS) {
+    const l = document.createElement('label');
+    l.innerHTML = `<span>${CORNER_LABEL[k]}</span><select data-corner="${k}">${ITEMS.map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select>`;
+    l.querySelector('select')!.addEventListener('change', (e) => {
+      settings.corners[k] = (e.target as HTMLSelectElement).value as CornerItem;
+      update();
+    });
+    grid.appendChild(l);
+  }
+
   $<HTMLInputElement>('#author').addEventListener('input', (e) => {
     settings.author = (e.target as HTMLInputElement).value;
     update();
@@ -572,6 +609,22 @@ function renderControls() {
   set('collageWidth', settings.collage.width);
   set('collageBg', settings.collage.bg);
   set('author', settings.author);
+  set('creditScale', settings.credit.scale);
+  out('creditScale', `${Math.round(settings.credit.scale * 100)}%`);
+  set('creditColor', settings.credit.color);
+  const cornerLayout = !!getLayout(settings.layoutId).corners;
+  $$('#creditPos [data-pos]').forEach((b) => {
+    b.classList.toggle('active', b.dataset.pos === settings.credit.position);
+    (b as HTMLButtonElement).disabled = cornerLayout;
+  });
+  $('#creditColorField').hidden = cornerLayout || settings.credit.position === 'auto';
+  $('#creditHint').textContent = cornerLayout
+    ? '四隅レイアウトでは「四隅に表示する項目」でクレジットの位置を選びます。'
+    : settings.show.artist
+      ? ''
+      : '「表示する項目」で撮影者がオフになっています。';
+  $('#cornerPanel').hidden = !cornerLayout;
+  $$<HTMLSelectElement>('[data-corner]').forEach((sel) => (sel.value = settings.corners[sel.dataset.corner as Corner]));
 
   const collage = settings.mode === 'collage';
   $$('[data-mode]').forEach((b) => b.classList.toggle('active', b.dataset.mode === settings.mode));

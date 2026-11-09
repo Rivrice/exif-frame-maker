@@ -25,6 +25,10 @@ export interface PhotoItem {
   note?: string; // 読込時の注意（RAWプレビュー使用など）
 }
 
+export type Corner = 'tl' | 'tr' | 'bl' | 'br';
+export type CreditPosition = 'auto' | Corner;
+export type CornerItem = '' | 'maker' | 'makerModel' | 'model' | 'lens' | 'params' | 'date' | 'credit';
+
 export interface Colors {
   bg: string;
   text: string;
@@ -51,6 +55,13 @@ export interface Settings {
     artist: boolean;
   };
   author: string;
+  credit: {
+    scale: number; // クレジット（撮影者名）の文字サイズ倍率
+    position: CreditPosition; // 'auto' = レイアウト内
+    color: 'light' | 'dark' | 'text';
+  };
+  /** 四隅レイアウトで各隅に表示する項目 */
+  corners: Record<Corner, CornerItem>;
   mode: 'single' | 'collage';
   collage: {
     type: 'justified' | 'grid';

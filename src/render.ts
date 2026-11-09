@@ -1,5 +1,5 @@
 import type { PhotoItem, Settings } from './types';
-import { buildInfo, canvas, padToAspect, parseAspect, type RC } from './draw';
+import { buildInfo, canvas, drawText, isLight, lastPhotoRect, padToAspect, parseAspect, type RC } from './draw';
 import { getLayout } from './layouts';
 import { getLogo } from './logos';
 
@@ -40,12 +40,38 @@ async function context(p: PhotoItem, s: Settings): Promise<RC> {
   return { info, s, logo, font: getLayout(s.layoutId).font };
 }
 
+/** クレジットを写真の四隅に描く */
+function drawCornerCredit(out: HTMLCanvasElement, rc: RC, layoutFont: string) {
+  const r = lastPhotoRect;
+  if (!r.w || !r.h) return;
+  const ctx = out.getContext('2d')!;
+  const short = Math.max(Math.min(r.w, r.h), Math.sqrt(r.w * r.h) * 0.82);
+  const size = (short / 100) * 1.9 * rc.s.textScale * rc.s.credit.scale;
+  const pad = short * 0.035;
+  const pos = rc.s.credit.position;
+  const color = rc.s.credit.color === 'light' ? '#ffffff' : rc.s.credit.color === 'dark' ? '#111111' : rc.s.colors.text;
+  const x = pos.endsWith('l') ? r.x + pad : r.x + r.w - pad;
+  const y = pos.startsWith('t') ? r.y + pad + size * 0.65 : r.y + r.h - pad - size * 0.65;
+  ctx.save();
+  ctx.shadowColor = isLight(color) ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.6)';
+  ctx.shadowBlur = size * 0.35;
+  drawText(ctx, rc.info.artist, x, y, {
+    size,
+    weight: 600,
+    family: rc.s.font || layoutFont,
+    color,
+    align: pos.endsWith('l') ? 'left' : 'right',
+  });
+  ctx.restore();
+}
+
 /** k = 写真の描画倍率 */
 function renderWith(p: PhotoItem, s: Settings, rc: RC, k: number): HTMLCanvasElement {
   const layout = getLayout(s.layoutId);
   const iw = Math.max(1, Math.round(p.width * k));
   const ih = Math.max(1, Math.round(p.height * k));
   let out = layout.render(p.source, iw, ih, rc);
+  if (s.credit.position !== 'auto' && !layout.corners && rc.info.artist) drawCornerCredit(out, rc, layout.font);
   const aspect = parseAspect(s.aspect);
   if (aspect && !layout.canvasAspect) out = padToAspect(out, aspect, s.colors.bg);
   return out;

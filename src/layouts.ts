@@ -1,7 +1,7 @@
-import type { Colors, ImageSource } from './types';
+import type { Colors, Corner, CornerItem, ImageSource } from './types';
 import {
-  blurred, canvas, drawCover, drawLogo, drawPhoto, drawStack, drawText, fit, hasLogo, logoWidth,
-  maxLineWidth, parseAspect, stackHeight, textWidth, withAlpha, type Line, type RC,
+  blurred, canvas, creditLine, creditText, drawCover, drawLogo, drawPhoto, drawStack, drawText, fit, hasLogo,
+  isLight, logoWidth, maxLineWidth, parseAspect, stackHeight, textWidth, withAlpha, type Line, type RC, type TextSpec,
 } from './draw';
 
 export interface Layout {
@@ -12,6 +12,8 @@ export interface Layout {
   font: string;
   /** 固定比率キャンバスのレイアウト（出力比率が「自動」の時に使う比率） */
   canvasAspect?: number;
+  /** 四隅レイアウト（各隅の表示項目を設定できる） */
+  corners?: boolean;
   render(src: ImageSource, iw: number, ih: number, rc: RC): HTMLCanvasElement;
 }
 
@@ -22,6 +24,63 @@ const units = (short: number, rc: RC) => ({ u: (short / 100) * rc.s.borderScale,
 const join = (a: string[], sep = '  ') => a.filter(Boolean).join(sep);
 /** 英字のみ大文字化（αなどは保持） */
 const upper = (s: string) => s.replace(/[a-z]/g, (c) => c.toUpperCase());
+
+// ---------- 四隅レイアウト用 ----------
+
+export const CORNER_KEYS: Corner[] = ['tl', 'tr', 'bl', 'br'];
+
+function cornerText(item: CornerItem, rc: RC): string {
+  switch (item) {
+    case 'model': return rc.info.model;
+    case 'lens': return rc.info.lens;
+    case 'params': return join(rc.info.params, '  ');
+    case 'date': return rc.info.date;
+    case 'credit': return rc.info.artist;
+    default: return '';
+  }
+}
+
+function cornerSpec(item: CornerItem, t: number, rc: RC, F: string, main: string, sub: string): TextSpec {
+  switch (item) {
+    case 'model': return { size: 2.6 * t, weight: 700, family: F, color: main };
+    case 'params': return { size: 2.2 * t, weight: 600, family: F, color: main };
+    case 'credit': return { size: 2 * t * rc.s.credit.scale, weight: 600, family: F, color: main };
+    default: return { size: 1.9 * t, weight: 500, family: F, color: sub };
+  }
+}
+
+/** 項目の高さ（表示するものが無ければ 0） */
+function cornerItemHeight(item: CornerItem, t: number, rc: RC): number {
+  if (!item) return 0;
+  if (item === 'maker') return hasLogo(rc) ? 3.4 * t : 0;
+  if (item === 'makerModel') return hasLogo(rc) || rc.info.model ? 3.4 * t : 0;
+  return cornerText(item, rc) ? cornerSpec(item, t, rc, '', '', '').size : 0;
+}
+
+function drawCornerItem(
+  ctx: CanvasRenderingContext2D, rc: RC, item: CornerItem, x: number, cy: number, align: 'left' | 'right',
+  t: number, F: string, main: string, sub: string, maxW: number,
+) {
+  if (item === 'maker') {
+    drawLogo(ctx, rc, x, cy, 3.4 * t, align, main);
+    return;
+  }
+  if (item === 'makerModel') {
+    const lh = 3.4 * t;
+    const spec: TextSpec = { size: 2.6 * t, weight: 600, family: F, color: main };
+    const lw = logoWidth(ctx, rc, lh);
+    const gap = lw && rc.info.model ? 1.6 * t : 0;
+    const mw = textWidth(ctx, rc.info.model, spec);
+    const left = align === 'left' ? x : x - (lw + gap + mw);
+    drawLogo(ctx, rc, left, cy, lh, 'left', main);
+    drawText(ctx, rc.info.model, left + lw + gap, cy, fit(ctx, rc.info.model, spec, Math.max(maxW - lw - gap, maxW * 0.3)));
+    return;
+  }
+  const text = cornerText(item, rc);
+  if (!text) return;
+  const spec = { ...cornerSpec(item, t, rc, F, main, sub), align };
+  drawText(ctx, text, x, cy, fit(ctx, text, spec, maxW));
+}
 
 /** 固定比率キャンバス：出力比率の設定を優先 */
 function canvasAspectOf(rc: RC, def: number) {
@@ -56,21 +115,22 @@ export const LAYOUTS: Layout[] = [
       const { u, t } = units(base(iw, ih), rc);
       const F = fam(rc, this.font);
       const { colors: C } = rc.s;
-      const bar = Math.max(11 * u, 9.5 * t);
-      const { c, ctx } = canvas(iw, ih + bar);
-      ctx.fillStyle = C.bg;
-      ctx.fillRect(0, 0, c.width, c.height);
-      drawPhoto(ctx, src, 0, 0, iw, ih);
-      const cy = ih + bar / 2;
-      const px = Math.max(4 * u, 3 * t);
       const left: Line[] = [
         { text: rc.info.model, spec: { size: 2.7 * t, weight: 700, family: F, color: C.text } },
         { text: rc.info.lens, spec: { size: 1.9 * t, weight: 400, family: F, color: C.sub } },
       ];
       const right: Line[] = [
         { text: join(rc.info.params), spec: { size: 2.5 * t, weight: 700, family: F, color: C.text, align: 'right' } },
-        { text: join([rc.info.date, rc.info.artist]), spec: { size: 1.8 * t, weight: 400, family: F, color: C.sub, align: 'right' } },
+        { text: rc.info.date, spec: { size: 1.8 * t, weight: 400, family: F, color: C.sub, align: 'right' } },
+        creditLine(rc, 1.8 * t, { weight: 500, family: F, color: C.sub, align: 'right' }),
       ];
+      const bar = Math.max(11 * u, 9.5 * t, stackHeight(right, 0.5 * t) + 3.5 * t, stackHeight(left, 0.5 * t) + 3.5 * t);
+      const { c, ctx } = canvas(iw, ih + bar);
+      ctx.fillStyle = C.bg;
+      ctx.fillRect(0, 0, c.width, c.height);
+      drawPhoto(ctx, src, 0, 0, iw, ih);
+      const cy = ih + bar / 2;
+      const px = Math.max(4 * u, 3 * t);
       const rw = maxLineWidth(ctx, right);
       const lh = 4.4 * t;
       const lw = logoWidth(ctx, rc, lh);
@@ -102,20 +162,21 @@ export const LAYOUTS: Layout[] = [
       const F = fam(rc, this.font);
       const C = rc.s.colors;
       const side = 5 * u;
-      const bottom = Math.max(22 * u, 19 * t);
+      const lines: Line[] = [
+        { text: rc.info.model, spec: { size: 2.6 * t, weight: 700, family: F, color: C.text, align: 'center' } },
+        { text: join(rc.info.params), spec: { size: 2 * t, weight: 400, family: F, color: C.sub, align: 'center' } },
+        { text: join([rc.info.lens, rc.info.date], '   '), spec: { size: 1.6 * t, family: F, color: C.sub, align: 'center' } },
+        creditLine(rc, 1.7 * t, { weight: 500, family: F, color: C.sub, align: 'center' }),
+      ];
+      const logoH = hasLogo(rc) ? 4.6 * t : 0;
+      const total = logoH + (logoH ? 2.6 * t : 0) + stackHeight(lines, 0.6 * t);
+      const bottom = Math.max(22 * u, 19 * t, total + 7 * t);
       const { c, ctx } = canvas(iw + side * 2, ih + side + bottom);
       ctx.fillStyle = C.bg;
       ctx.fillRect(0, 0, c.width, c.height);
       drawPhoto(ctx, src, side, side, iw, ih);
       const cx = c.width / 2;
       const top = side + ih;
-      const lines: Line[] = [
-        { text: rc.info.model, spec: { size: 2.6 * t, weight: 700, family: F, color: C.text, align: 'center' } },
-        { text: join(rc.info.params), spec: { size: 2 * t, weight: 400, family: F, color: C.sub, align: 'center' } },
-        { text: join([rc.info.lens, rc.info.date, rc.info.artist], '   '), spec: { size: 1.6 * t, family: F, color: C.sub, align: 'center' } },
-      ];
-      const logoH = hasLogo(rc) ? 4.6 * t : 0;
-      const total = logoH + (logoH ? 2.6 * t : 0) + stackHeight(lines, 0.6 * t);
       let y = top + bottom / 2 - total / 2;
       if (logoH) {
         drawLogo(ctx, rc, cx, y + logoH / 2, logoH, 'center', C.text);
@@ -138,20 +199,23 @@ export const LAYOUTS: Layout[] = [
       const F = fam(rc, this.font);
       const C = rc.s.colors;
       const b = 3 * u;
-      const bottom = Math.max(12 * u, 10 * t);
+      const cr = creditText(rc);
+      const crSize = 1.7 * t * rc.s.credit.scale;
+      const crH = cr ? crSize * 1.3 + 0.8 * t : 0;
+      const bottom = Math.max(12 * u, 10 * t) + crH;
       const { c, ctx } = canvas(iw + b * 2, ih + b + bottom);
       ctx.fillStyle = C.bg;
       ctx.fillRect(0, 0, c.width, c.height);
       drawPhoto(ctx, src, b, b, iw, ih);
       const cx = c.width / 2;
-      const cy = b + ih + bottom / 2;
+      const cy = b + ih + (bottom - crH) / 2;
       const s1 = { size: 2.4 * t, weight: 700, family: F, color: C.text };
       const s2 = { size: 1.8 * t, weight: 400, family: F, color: C.sub, align: 'center' as const };
       const lh = 3.6 * t;
       const lw = logoWidth(ctx, rc, lh);
       const mw = textWidth(ctx, rc.info.model, s1);
       const gap = lw && mw ? 2.2 * t : 0;
-      const sub = join([join(rc.info.params), rc.info.date, rc.info.artist], '  ·  ');
+      const sub = join([join(rc.info.params), rc.info.date], '  ·  ');
       const hasSub = !!sub;
       const y1 = hasSub ? cy - 1.9 * t : cy;
       const x0 = cx - (lw + gap + mw) / 2;
@@ -162,6 +226,10 @@ export const LAYOUTS: Layout[] = [
       }
       drawText(ctx, rc.info.model, x0 + lw + gap, y1, s1);
       if (hasSub) drawText(ctx, sub, cx, cy + 2.6 * t, fit(ctx, sub, s2, c.width - b * 4));
+      if (cr) {
+        const y = cy + (hasSub ? 2.6 * t + 1.8 * t * 0.65 : 2 * t) + 0.8 * t + crSize * 0.65;
+        drawText(ctx, cr, cx, y, fit(ctx, cr, { ...s2, size: crSize, weight: 500 }, c.width - b * 4));
+      }
       return c;
     },
   },
@@ -189,7 +257,8 @@ export const LAYOUTS: Layout[] = [
       const lines: Line[] = [
         { text: rc.info.model, spec: { size: 3 * t, weight: 700, family: F, color: C.text } },
         { text: join(rc.info.params, '   '), spec: { size: 2.1 * t, weight: 500, family: F, color: C.sub } },
-        { text: join([rc.info.lens, rc.info.date, rc.info.artist], '   '), spec: { size: 1.6 * t, family: F, color: C.sub } },
+        { text: join([rc.info.lens, rc.info.date], '   '), spec: { size: 1.6 * t, family: F, color: C.sub } },
+        creditLine(rc, 1.7 * t, { weight: 600, family: F, color: C.text }),
       ];
       const sh = stackHeight(lines, 0.5 * t);
       const bottomY = ih - px;
@@ -242,6 +311,15 @@ export const LAYOUTS: Layout[] = [
         ctx.fillStyle = C.bg;
         ctx.fillRect(side + 8 * u, 0, ew, band);
         drawText(ctx, edgeText, side + 9 * u, band / 2, edge);
+      }
+      const cr = creditText(rc);
+      if (cr) {
+        const cs = fit(ctx, cr, { ...edge, size: 1.6 * t * rc.s.credit.scale, align: 'right' as const }, W * 0.45);
+        cs.size = Math.min(cs.size, band * 0.8);
+        const cw = textWidth(ctx, cr, cs) + 2 * u;
+        ctx.fillStyle = C.bg;
+        ctx.fillRect(W - side - 8 * u - cw, 0, cw, band);
+        drawText(ctx, cr, W - side - 9 * u, band / 2, cs);
       }
       const cy = band * 2 + ih + info / 2 - band / 2;
       const left = { size: 2.3 * t, weight: 700, family: F, color: C.text };
@@ -327,17 +405,19 @@ export const LAYOUTS: Layout[] = [
       if (rc.info.lens) items.push(['LENS', rc.info.lens]);
       if (rc.info.params.length) items.push(['SETTINGS', join(rc.info.params)]);
       if (rc.info.date) items.push(['DATE', rc.info.date]);
-      if (rc.info.artist) items.push(['PHOTO', rc.info.artist.replace(/^© /, '')]);
+      const cr = creditText(rc);
+      if (cr) items.push(['PHOTO', cr.replace(/^© /, '')]);
       const val = { size: 2.7 * t, weight: 600, family: F, color: C.text };
-      const blockH = 1.9 * t * 1.3 + 0.6 * t + 2.7 * t * 1.3;
+      const valSize = (k: string) => (k === 'PHOTO' ? 2.7 * t * rc.s.credit.scale : 2.7 * t);
       const gap = 2.6 * t;
-      const total = items.length * blockH + Math.max(0, items.length - 1) * gap;
+      const total = items.reduce((a, [k]) => a + 1.9 * t * 1.3 + 0.6 * t + valSize(k) * 1.3, 0) + Math.max(0, items.length - 1) * gap;
       let y = ih - 4 * u - total;
       for (const [k, v] of items) {
         drawText(ctx, k, x, y + 1.9 * t * 0.65, accentBar);
         y += 1.9 * t * 1.3 + 0.6 * t;
-        drawText(ctx, v, x, y + 2.7 * t * 0.65, fit(ctx, v, val, maxW));
-        y += 2.7 * t * 1.3 + gap;
+        const vs = valSize(k);
+        drawText(ctx, v, x, y + vs * 0.65, fit(ctx, v, { ...val, size: vs }, maxW));
+        y += vs * 1.3 + gap;
       }
       return c;
     },
@@ -355,7 +435,7 @@ export const LAYOUTS: Layout[] = [
       const F = fam(rc, this.font);
       const C = rc.s.colors;
       const m = 10 * u;
-      const bottom = Math.max(20 * u, 16 * t);
+      const bottom = Math.max(20 * u, 16 * t) + (creditText(rc) ? 2.1 * t * rc.s.credit.scale * 1.3 + 0.8 * t : 0);
       const { c, ctx } = canvas(iw + m * 2, ih + m + bottom);
       ctx.fillStyle = C.bg;
       ctx.fillRect(0, 0, c.width, c.height);
@@ -372,7 +452,8 @@ export const LAYOUTS: Layout[] = [
       const title = upper(join([rc.info.maker && !hasLogo(rc) ? rc.info.maker.display : '', rc.info.model], ' '));
       const lines: Line[] = [
         { text: title, spec: { size: 2.8 * t, weight: 700, family: F, color: C.text, align: 'center', spacing: 0.3 } },
-        { text: join([...rc.info.params, rc.info.date, rc.info.artist], '  ·  '), spec: { size: 2.2 * t, weight: 600, family: F, color: C.sub, align: 'center', spacing: 0.08 } },
+        { text: join([...rc.info.params, rc.info.date], '  ·  '), spec: { size: 2.2 * t, weight: 600, family: F, color: C.sub, align: 'center', spacing: 0.08 } },
+        creditLine(rc, 2.1 * t, { weight: 600, family: F, color: C.sub, align: 'center', spacing: 0.08 }),
       ];
       const lh = hasLogo(rc) ? 3.6 * t : 0;
       const sh = stackHeight(lines, 0.8 * t);
@@ -399,7 +480,7 @@ export const LAYOUTS: Layout[] = [
       const F = fam(rc, this.font);
       const C = rc.s.colors;
       const b = 2 * u;
-      const bottom = Math.max(22 * u, 21 * t);
+      const bottom = Math.max(22 * u, 21 * t) + (creditText(rc) ? 1.8 * t * rc.s.credit.scale * 1.3 + 0.5 * t : 0);
       const { c, ctx } = canvas(iw + b * 2, ih + b + bottom);
       ctx.fillStyle = C.bg;
       ctx.fillRect(0, 0, c.width, c.height);
@@ -408,7 +489,8 @@ export const LAYOUTS: Layout[] = [
       const lines: Line[] = [
         { text: rc.info.model, spec: { size: 2.7 * t, weight: 700, family: F, color: C.text, align: 'center', spacing: 0.05 } },
         { text: join([...rc.info.params, rc.info.lens], '  |  '), spec: { size: 2.1 * t, weight: 500, family: F, color: C.sub, align: 'center' } },
-        { text: join([rc.info.date, rc.info.artist], '   '), spec: { size: 1.8 * t, family: F, color: C.sub, align: 'center' } },
+        { text: rc.info.date, spec: { size: 1.8 * t, family: F, color: C.sub, align: 'center' } },
+        creditLine(rc, 1.8 * t, { weight: 500, family: F, color: C.sub, align: 'center' }),
       ];
       const lh = hasLogo(rc) ? 5.6 * t : 0;
       const sh = stackHeight(lines, 0.5 * t);
@@ -444,7 +526,8 @@ export const LAYOUTS: Layout[] = [
       drawPhoto(ctx, src, 0, bar, iw, ih);
       const px = 4 * u;
       const small = { size: 1.6 * t, weight: 400, family: F, color: C.sub, spacing: 0.2 };
-      drawText(ctx, upper(rc.info.artist), px, bar / 2, small);
+      const cr = upper(creditText(rc));
+      if (cr) drawText(ctx, cr, px, bar / 2, fit(ctx, cr, { ...small, size: Math.min(1.6 * t * rc.s.credit.scale, bar * 0.6) }, iw * 0.55));
       drawText(ctx, rc.info.date, iw - px, bar / 2, { ...small, align: 'right' });
       const cy = bar + ih + bar / 2;
       const lh = 3.4 * t;
@@ -460,6 +543,71 @@ export const LAYOUTS: Layout[] = [
       return c;
     },
   },
+
+  // 13. 四隅（写真の上）
+  {
+    id: 'corners',
+    name: '四隅',
+    desc: '写真の四隅に好きな情報を重ねて配置',
+    colors: { bg: '#000000', text: '#ffffff', sub: '#e6e6e6', accent: '#ffffff' },
+    font: 'Inter',
+    corners: true,
+    render(src, iw, ih, rc) {
+      const { u, t } = units(base(iw, ih), rc);
+      const F = fam(rc, this.font);
+      const C = rc.s.colors;
+      const { c, ctx } = canvas(iw, ih);
+      drawPhoto(ctx, src, 0, 0, iw, ih);
+      const pad = 4.5 * u;
+      ctx.save();
+      ctx.shadowColor = isLight(C.text) ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.6)';
+      ctx.shadowBlur = 1.2 * t;
+      for (const k of CORNER_KEYS) {
+        const item = rc.s.corners[k];
+        const h = cornerItemHeight(item, t, rc);
+        if (!h) continue;
+        const left = k.endsWith('l');
+        const cy = k.startsWith('t') ? pad + h / 2 : ih - pad - h / 2;
+        drawCornerItem(ctx, rc, item, left ? pad : iw - pad, cy, left ? 'left' : 'right', t, F, C.text, C.sub, iw / 2 - pad * 1.5);
+      }
+      ctx.restore();
+      return c;
+    },
+  },
+
+  // 14. 四隅（フチの上）
+  {
+    id: 'corners-frame',
+    name: '四隅フチ',
+    desc: '上下のフチの四隅に好きな情報を配置',
+    colors: { bg: '#ffffff', text: '#1a1a1a', sub: '#8a8a8a', accent: '#d0d0d0' },
+    font: 'Inter',
+    corners: true,
+    render(src, iw, ih, rc) {
+      const { u, t } = units(base(iw, ih), rc);
+      const F = fam(rc, this.font);
+      const C = rc.s.colors;
+      const b = 3.5 * u;
+      const hOf = (a: Corner, z: Corner) => Math.max(cornerItemHeight(rc.s.corners[a], t, rc), cornerItemHeight(rc.s.corners[z], t, rc));
+      const topH = hOf('tl', 'tr');
+      const botH = hOf('bl', 'br');
+      const top = topH ? Math.max(8 * u, topH + 3.5 * t) : b;
+      const bottom = botH ? Math.max(8 * u, botH + 3.5 * t) : b;
+      const W = iw + b * 2;
+      const { c, ctx } = canvas(W, ih + top + bottom);
+      ctx.fillStyle = C.bg;
+      ctx.fillRect(0, 0, c.width, c.height);
+      drawPhoto(ctx, src, b, top, iw, ih);
+      for (const k of CORNER_KEYS) {
+        const item = rc.s.corners[k];
+        if (!cornerItemHeight(item, t, rc)) continue;
+        const left = k.endsWith('l');
+        const cy = k.startsWith('t') ? top / 2 : top + ih + bottom / 2;
+        drawCornerItem(ctx, rc, item, left ? b : W - b, cy, left ? 'left' : 'right', t, F, C.text, C.sub, iw / 2 - b);
+      }
+      return c;
+    },
+  },
 ];
 
 /** 固定比率キャンバス（スクエア / 4:5 / ぼかし背景）の共通処理 */
@@ -468,7 +616,8 @@ function fixedLayout(src: ImageSource, iw: number, ih: number, rc: RC, aspect: n
   const mR = 0.06 * rc.s.borderScale;
   // テキスト領域：短辺基準の文字サイズで必要な高さ（ロゴ＋3行）を確保
   const shortRatio = Math.min(1, 1 / aspect);
-  const tR = shortRatio * rc.s.textScale * 0.16 + mR * 0.6;
+  const crExtra = creditText(rc) ? 0.024 * rc.s.credit.scale : 0;
+  const tR = shortRatio * rc.s.textScale * (0.16 + crExtra) + mR * 0.6;
   const { W, H } = fixedCanvas(iw, ih, aspect, mR, tR);
   const { c, ctx } = canvas(W, H);
   const short = Math.min(W, H);
@@ -503,7 +652,8 @@ function fixedLayout(src: ImageSource, iw: number, ih: number, rc: RC, aspect: n
   const lines: Line[] = [
     { text: rc.info.model, spec: { size: 2.6 * t, weight: 700, family: F, color: C.text, align: 'center' } },
     { text: join(rc.info.params, '   '), spec: { size: 2 * t, weight: 400, family: F, color: C.sub, align: 'center' } },
-    { text: join([rc.info.lens, rc.info.date, rc.info.artist], '   '), spec: { size: 1.6 * t, family: F, color: C.sub, align: 'center' } },
+    { text: join([rc.info.lens, rc.info.date], '   '), spec: { size: 1.6 * t, family: F, color: C.sub, align: 'center' } },
+    creditLine(rc, 1.7 * t, { weight: 500, family: F, color: C.sub, align: 'center' }),
   ];
   const lh = hasLogo(rc) ? 4 * t : 0;
   const sh = stackHeight(lines, 0.5 * t);

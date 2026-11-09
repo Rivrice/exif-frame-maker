@@ -63,6 +63,11 @@
           <div id="presets" class="presets"></div>
         </details>
 
+        <details open data-tab="layout" id="cornerPanel" hidden>
+          <summary>四隅に表示する項目</summary>
+          <div class="corner-grid" id="cornerGrid"></div>
+        </details>
+
         <details open data-tab="color">
           <summary>カラー</summary>
           <div class="colors">
@@ -112,10 +117,34 @@
             </select>
           </div>
           <div class="toggles" id="toggles"></div>
+          <div class="subhead">クレジット（撮影者名）</div>
           <div class="field">
             <span>撮影者名（任意）</span>
             <input id="author" type="text" placeholder="空欄ならExifのArtistを使用" />
           </div>
+          <div class="field">
+            <span>クレジットの文字サイズ <output id="creditScaleOut"></output></span>
+            <input id="creditScale" type="range" min="0.5" max="3" step="0.05" />
+          </div>
+          <div class="field">
+            <span>クレジットの位置</span>
+            <div class="corner-pick" id="creditPos" role="radiogroup" aria-label="クレジットの位置">
+              <button data-pos="tl" aria-label="左上">左上</button>
+              <button data-pos="tr" aria-label="右上">右上</button>
+              <button data-pos="auto" class="wide" aria-label="レイアウトに合わせる">レイアウトに合わせる</button>
+              <button data-pos="bl" aria-label="左下">左下</button>
+              <button data-pos="br" aria-label="右下">右下</button>
+            </div>
+          </div>
+          <div class="field" id="creditColorField">
+            <span>四隅に置くときの文字色</span>
+            <select id="creditColor">
+              <option value="light">白（影付き）</option>
+              <option value="dark">黒</option>
+              <option value="text">メイン文字色</option>
+            </select>
+          </div>
+          <p class="hint" id="creditHint"></p>
         </details>
 
         <details id="infoPanel" open data-tab="info">

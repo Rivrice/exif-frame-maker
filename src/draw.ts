@@ -173,9 +173,32 @@ export function canvas(w: number, h: number) {
   return { c, ctx };
 }
 
+/** 直近に描いた写真の位置（クレジットを写真の四隅に置くために使用。描画は同期的なので安全） */
+export let lastPhotoRect = { x: 0, y: 0, w: 0, h: 0 };
+
 export function drawPhoto(ctx: CanvasRenderingContext2D, src: ImageSource, x: number, y: number, w: number, h: number) {
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(src, x, y, w, h);
+  lastPhotoRect = { x, y, w, h };
+}
+
+/** レイアウト内に表示するクレジット（四隅に配置する設定のときは空） */
+export function creditText(rc: RC) {
+  return rc.s.credit.position === 'auto' ? rc.info.artist : '';
+}
+
+/** クレジットの行（基準サイズにクレジット倍率を掛ける） */
+export function creditLine(rc: RC, size: number, spec: Omit<TextSpec, 'size'>): Line {
+  return { text: creditText(rc), spec: { ...spec, size: size * rc.s.credit.scale } };
+}
+
+/** 文字色が明るいか */
+export function isLight(hex: string) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+  if (!m) return true;
+  const n = parseInt(m[1], 16);
+  const l = 0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255);
+  return l > 140;
 }
 
 /** 縮小→拡大で作るぼかし（全ブラウザで動作） */

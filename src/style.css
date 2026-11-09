@@ -305,3 +305,22 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .about-body a { color: var(--accent); }
 .disclaimer { font-size: 10.5px; color: var(--muted); line-height: 1.5; margin: 16px 2px 0; }
 @media (max-width: 900px) { .disclaimer { display: none; } }
+
+.subhead { font-size: 12px; font-weight: 700; margin: 16px 0 2px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.corner-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.corner-pick button {
+  border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 7px 4px; cursor: pointer; font-size: 12px;
+}
+.corner-pick button.wide { grid-column: 1 / -1; }
+.corner-pick button.active { background: var(--text); color: var(--panel); border-color: var(--text); }
+.corner-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  padding: 10px; border: 2px solid var(--line); border-radius: 10px; position: relative;
+}
+.corner-grid label { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--muted); }
+.corner-grid label:nth-child(even) { text-align: right; }
+.corner-grid select { width: 100%; padding: 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); }
+@media (max-width: 900px) {
+  .corner-pick button { min-height: 42px; font-size: 13px; }
+  .corner-grid select { font-size: 16px; min-height: 42px; border-radius: 10px; }
+}
