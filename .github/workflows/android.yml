@@ -1,0 +1,78 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-apk
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v3
+      - run: npm ci
+      - run: npm run build
+      - run: npx cap sync android
+      - name: Prepare signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          # Secrets に鍵があればそれを使う（上書き更新が可能）。無ければこの実行用に一時的な鍵を作る。
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+            echo "ANDROID_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "ANDROID_KEY_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+          else
+            echo "::warning::ANDROID_KEYSTORE_BASE64 が未設定のため一時的な鍵で署名します（更新時はアンインストールが必要）"
+            TMP_PASS=$(openssl rand -hex 16)
+            keytool -genkeypair -keystore "$RUNNER_TEMP/release.keystore" -alias exifframe -keyalg RSA -keysize 2048 \
+              -validity 10000 -storepass "$TMP_PASS" -keypass "$TMP_PASS" -dname "CN=Exif Frame Maker"
+            echo "::add-mask::$TMP_PASS"
+            echo "ANDROID_KEYSTORE_PASSWORD=$TMP_PASS" >> "$GITHUB_ENV"
+            echo "ANDROID_KEY_PASSWORD=$TMP_PASS" >> "$GITHUB_ENV"
+          fi
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+          echo "ANDROID_KEY_ALIAS=exifframe" >> "$GITHUB_ENV"
+      - name: Build APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon -PversionCode=${{ github.run_number }} -PversionName=1.0.${{ github.run_number }}
+      - run: cp android/app/build/outputs/apk/release/app-release.apk exif-frame-maker.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: exif-frame-maker-apk
+          path: exif-frame-maker.apk
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Exif Frame Maker 1.0.${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          files: exif-frame-maker.apk
+          body: |
+            ## Android版のインストール方法
+            1. 下の **exif-frame-maker.apk** をスマホでダウンロード
+            2. ダウンロードしたファイルを開く（「提供元不明のアプリ」の許可を求められたら許可）
+            3. インストールしてアプリを起動
+
+            以前のバージョンが入っている場合は、そのまま上書き更新できます。
+
+            ブラウザ版: https://rivrice.github.io/exif-frame-maker/

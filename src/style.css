@@ -157,12 +157,135 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
   white-space: pre-line; box-shadow: 0 6px 24px rgba(0,0,0,.25); z-index: 10;
 }
 
-@media (max-width: 1000px) {
-  body { height: auto; }
-  .app { grid-template-columns: 1fr; }
-  .panel.left { border-right: 0; border-bottom: 1px solid var(--line); }
-  .photo-list { flex-direction: row; overflow-x: auto; }
-  .photo-list li { flex: none; width: 200px; }
-  .stage-inner { height: 60vh; padding: 16px; }
-  .panel.right { border-left: 0; }
+.tabbar, .add-tile { display: none; }
+
+/* 書き出し完了シート */
+.sheet-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 20;
+  display: flex; align-items: flex-end; justify-content: center;
 }
+.sheet-card {
+  width: min(100%, 440px); background: var(--panel); border-radius: 18px 18px 0 0;
+  padding: 20px 18px calc(18px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 10px;
+}
+@media (min-width: 901px) { .sheet-backdrop { align-items: center; } .sheet-card { border-radius: 18px; } }
+.sheet-card h2 { margin: 0; font-size: 17px; }
+.sheet-card p { margin: 0 0 6px; color: var(--muted); font-size: 13px; }
+.sheet-card button:not(.link) {
+  min-height: 48px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); font-weight: 600; cursor: pointer; font-size: 15px;
+}
+.sheet-card button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.sheet-card .link { align-self: center; padding: 8px; font-size: 14px; }
+
+/* ---------- スマホ / 小さい画面 ---------- */
+@media (max-width: 900px) {
+  html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+  body {
+    height: 100dvh;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    font-size: 15px;
+  }
+  .topbar { padding: calc(6px + env(safe-area-inset-top)) 12px 6px; }
+  .brand h1 { font-size: 15px; }
+  .brand-mark { width: 18px; height: 18px; border-width: 2.5px; }
+  .seg button { padding: 6px 12px; font-size: 13px; }
+
+  .app {
+    display: grid;
+    grid-template-columns: 100%;
+    grid-template-rows: minmax(150px, 1fr) auto minmax(0, 42%);
+    grid-template-areas: 'stage' 'strip' 'sheet';
+    min-height: 0;
+  }
+  .stage { grid-area: stage; min-height: 0; }
+  .stage-inner { padding: 12px; }
+  #preview { box-shadow: 0 4px 16px rgba(0,0,0,.2); }
+  .stage-meta { padding: 0 12px 6px; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* 写真ストリップ */
+  .panel.left {
+    grid-area: strip; border: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+    padding: 8px 10px; display: flex; align-items: center; gap: 8px; overflow: hidden;
+  }
+  .drop, .list-head { display: none; }
+  .photo-list { flex-direction: row; overflow-x: auto; gap: 8px; flex: 1; scrollbar-width: none; order: 2; }
+  .photo-list::-webkit-scrollbar { display: none; }
+  .photo-list li { flex: none; width: auto; padding: 0; position: relative; border-width: 2px; border-radius: 10px; }
+  .photo-list li.active { background: none; }
+  .photo-list img { width: 56px; height: 56px; border-radius: 8px; display: block; }
+  .pl-text { display: none; }
+  .pl-del {
+    position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; font-size: 14px; line-height: 1;
+    background: var(--text); color: var(--panel); display: none;
+  }
+  .photo-list li.active .pl-del { display: block; }
+  .add-tile {
+    order: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; flex: none;
+    width: 56px; height: 56px; border-radius: 10px; border: 1.5px dashed var(--accent); color: var(--accent);
+    font-size: 10px; font-weight: 700; cursor: pointer; line-height: 1.1;
+  }
+  .add-tile span { font-size: 22px; line-height: 1; }
+
+  /* 設定シート（タブで切り替え） */
+  .panel.right {
+    grid-area: sheet; border: 0; padding: 4px 14px 14px; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+  }
+  .panel.right details { display: none; border: 0; padding: 6px 0 10px; }
+  body[data-tab='layout'] .panel.right details[data-tab='layout']:not([hidden]),
+  body[data-tab='color'] .panel.right details[data-tab='color']:not([hidden]),
+  body[data-tab='text'] .panel.right details[data-tab='text']:not([hidden]),
+  body[data-tab='info'] .panel.right details[data-tab='info']:not([hidden]),
+  body[data-tab='save'] .panel.right details[data-tab='save']:not([hidden]) { display: block; }
+  summary { pointer-events: none; padding-bottom: 6px; color: var(--muted); font-size: 12px; }
+  summary::after { content: none !important; }
+
+  .presets { grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .preset { padding: 4px; }
+  .preset span { font-size: 10px; }
+
+  .colors { gap: 10px; }
+  .colors label { font-size: 13px; }
+  input[type=color] { width: 44px; height: 40px; }
+  .swatch { width: 36px; height: 36px; }
+  .swatches { gap: 8px; }
+
+  .field { font-size: 13px; }
+  .field select, .field input[type=text], .field input[type=number], .exif-form input {
+    font-size: 16px; /* iOSの自動ズーム防止 */ min-height: 42px; border-radius: 10px;
+  }
+  input[type=range] { height: 32px; }
+  .chip span { padding: 8px 14px; font-size: 13px; }
+  .exif-form label { font-size: 12px; }
+  .btn-sm { padding: 8px 12px; font-size: 13px; }
+  .makers li { min-height: 40px; }
+  .link { font-size: 14px; padding: 8px 0; }
+  .actions button { min-height: 48px; font-size: 15px; border-radius: 12px; }
+
+  /* 下部タブバー */
+  .tabbar {
+    display: flex; background: var(--panel); border-top: 1px solid var(--line);
+    padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+  }
+  .tabbar button {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; border: 0; background: none;
+    font-size: 10.5px; color: var(--muted); padding: 6px 0; cursor: pointer; min-height: 50px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tabbar svg { width: 24px; height: 24px; }
+  .tabbar button.active { color: var(--accent); font-weight: 700; }
+  .toast { bottom: calc(80px + env(safe-area-inset-bottom)); }
+  .busy { top: 8px; right: 8px; }
+}
+
+/* 横向きのスマホ：プレビューと設定を左右に */
+@media (max-width: 900px) and (orientation: landscape) and (max-height: 500px) {
+  .app {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-areas: 'stage sheet' 'strip sheet';
+  }
+  .tabbar button { min-height: 40px; flex-direction: row; justify-content: center; gap: 6px; }
+  .tabbar svg { width: 18px; height: 18px; }
+}
+

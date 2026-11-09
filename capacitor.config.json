@@ -1,0 +1,8 @@
+{
+  "appId": "io.github.rivrice.exifframe",
+  "appName": "Exif Frame Maker",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false
+  }
+}

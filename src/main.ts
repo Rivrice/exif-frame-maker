@@ -33,8 +33,9 @@ import { buildInfo } from './draw';
 import { LAYOUTS, getLayout } from './layouts';
 import { getLogo, logoOrigin, removeUserLogo, setUserLogo } from './logos';
 import { MAKERS } from './makers';
-import { canvasToBlob, preloadFonts, renderCollage, renderOutput, renderPreview } from './render';
+import { IS_IOS, canvasToBlob, preloadFonts, renderCollage, renderOutput, renderPreview } from './render';
 import type { Colors, ExifInfo, PhotoItem, Settings } from './types';
+import { IS_NATIVE, nativeSave, nativeShare } from './native';
 
 // ---------- 状態 ----------
 
@@ -170,6 +171,7 @@ async function addFiles(files: FileList | File[]) {
     setProgress(`読み込み中… ${i + 1}/${list.length}  ${f.name}`);
     try {
       const d = await decodeFile(f);
+      limitSourceSize(d);
       const item: PhotoItem = {
         id: uid(),
         name: f.name,
@@ -198,6 +200,26 @@ async function addFiles(files: FileList | File[]) {
   refreshAll();
 }
 
+/** スマホではメモリ不足を避けるため、極端に大きい画像を読み込み時に縮小しておく */
+const IS_MOBILE = IS_IOS || /Android|Mobi/i.test(navigator.userAgent);
+const MOBILE_MAX_AREA = 16_000_000;
+function limitSourceSize(d: { source: PhotoItem['source']; width: number; height: number }) {
+  if (!IS_MOBILE) return;
+  const area = d.width * d.height;
+  if (area <= MOBILE_MAX_AREA) return;
+  const k = Math.sqrt(MOBILE_MAX_AREA / area);
+  const c = document.createElement('canvas');
+  c.width = Math.round(d.width * k);
+  c.height = Math.round(d.height * k);
+  const ctx = c.getContext('2d')!;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(d.source, 0, 0, c.width, c.height);
+  if (d.source instanceof ImageBitmap) d.source.close();
+  d.source = c;
+  d.width = c.width;
+  d.height = c.height;
+}
+
 // ---------- 描画 ----------
 
 let previewToken = 0;
@@ -218,7 +240,7 @@ function scheduleThumbs(delay = 200) {
 async function drawPreview() {
   const token = ++previewToken;
   const stage = $('#stage');
-  const target = Math.min(2400, Math.max(stage.clientWidth, stage.clientHeight) * Math.min(2, devicePixelRatio || 1));
+  const target = Math.min(IS_MOBILE ? 1600 : 2400, Math.max(stage.clientWidth, stage.clientHeight, 300) * Math.min(2, devicePixelRatio || 1));
   let out: HTMLCanvasElement;
   try {
     if (settings.mode === 'collage' && photos.length) {
@@ -441,7 +463,7 @@ function buildStaticControls() {
 
   // ファイル
   const file = $<HTMLInputElement>('#file');
-  file.accept = ACCEPT;
+  file.accept = IS_NATIVE ? '' : ACCEPT; // Androidアプリでは拡張子指定が効かないため全ファイルを許可
   file.addEventListener('change', () => {
     if (file.files) addFiles(file.files);
     file.value = '';
@@ -479,6 +501,47 @@ function buildStaticControls() {
   $('#saveCollage').addEventListener('click', exportCollage);
 
   window.addEventListener('resize', () => schedulePreview(150));
+
+  // スマホ用タブ
+  document.body.dataset.tab = 'layout';
+  $$('#tabbar [data-tab]').forEach((b) =>
+    b.addEventListener('click', () => {
+      document.body.dataset.tab = b.dataset.tab!;
+      $$('#tabbar [data-tab]').forEach((x) => x.classList.toggle('active', x === b));
+      $('.panel.right').scrollTop = 0;
+    }),
+  );
+
+  // 書き出し完了シート
+  $('#shareBtn').addEventListener('click', async () => {
+    if (!pending) return;
+    try {
+      if (IS_NATIVE) await nativeShare(pending.files);
+      else await navigator.share({ files: pending.files });
+      closeShare();
+    } catch (e) {
+      if ((e as Error).name !== 'AbortError') toast('共有できませんでした。ダウンロードをお試しください');
+    }
+  });
+  $('#shareDl').addEventListener('click', async () => {
+    if (!pending) return;
+    if (IS_NATIVE) {
+      try {
+        const dir = await nativeSave(pending.files);
+        toast(`${pending.files.length}枚を「${dir}」に保存しました`);
+      } catch (e) {
+        toast('保存できませんでした: ' + (e as Error).message);
+        return;
+      }
+    } else {
+      await downloadFiles(pending.files, pending.zip);
+    }
+    closeShare();
+  });
+  $('#shareClose').addEventListener('click', closeShare);
+  $('#shareSheet').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) closeShare();
+  });
 }
 
 function renderControls() {
@@ -646,30 +709,69 @@ function download(blob: Blob, name: string) {
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
 
+let pending: { files: File[]; zip: boolean } | null = null;
+
+function closeShare() {
+  pending = null;
+  $('#shareSheet').hidden = true;
+}
+
+function canShareFiles(files: File[]) {
+  try {
+    if (IS_NATIVE) return true;
+    return IS_MOBILE && typeof navigator.share === 'function' && !!navigator.canShare?.({ files });
+  } catch {
+    return false;
+  }
+}
+
+async function downloadFiles(files: File[], zip: boolean) {
+  if (zip && files.length > 1) {
+    setProgress('ZIPを作成中…');
+    const entries: Record<string, Uint8Array> = {};
+    for (const f of files) entries[f.name] = new Uint8Array(await f.arrayBuffer());
+    const data = zipSync(entries, { level: 0 });
+    download(new Blob([data.buffer as ArrayBuffer], { type: 'application/zip' }), `exif-frames_${new Date().toISOString().slice(0, 10)}.zip`);
+    setProgress('');
+    return;
+  }
+  for (const f of files) {
+    download(f, f.name);
+    if (files.length > 1) await new Promise((r) => setTimeout(r, 400)); // 連続ダウンロードのブロック回避
+  }
+}
+
+/** スマホでは共有シート（写真アプリへ保存など）、PCではそのままダウンロード */
+async function deliver(files: File[], zip: boolean) {
+  if (canShareFiles(files)) {
+    pending = { files, zip };
+    $('#shareDesc').textContent = IS_NATIVE
+      ? `${files.length}枚の画像を作成しました。「保存・共有」からギャラリーやGoogleフォトへ保存できます。`
+      : `${files.length}枚の画像を作成しました。「写真に保存・共有」から写真アプリへ保存できます。`;
+    $('#shareBtn').textContent = IS_NATIVE ? '保存・共有（ギャラリー / Googleフォトなど）' : '写真に保存・共有';
+    $('#shareDl').textContent = IS_NATIVE ? '端末の Documents フォルダに保存' : 'ファイルとしてダウンロード';
+    $('#shareSheet').hidden = false;
+  } else {
+    await downloadFiles(files, zip);
+    toast(`${files.length}枚を書き出しました`);
+  }
+}
+
 async function exportPhotos(list: PhotoItem[], zip: boolean) {
   if (!list.length || list[0].id === 'sample') return toast('先に写真を追加してください');
   setBusy(true);
   const used = new Set<string>();
-  const files: Record<string, Uint8Array> = {};
+  const files: File[] = [];
   try {
     for (let i = 0; i < list.length; i++) {
       setProgress(`書き出し中… ${i + 1}/${list.length}`);
       const c = await renderOutput(list[i], settings);
       const blob = await canvasToBlob(c, settings.export.format, settings.export.quality);
-      const name = outName(list[i], used);
-      if (zip) files[name] = new Uint8Array(await blob.arrayBuffer());
-      else {
-        download(blob, name);
-        await new Promise((r) => setTimeout(r, 350)); // 連続ダウンロードのブロック回避
-      }
+      files.push(new File([blob], outName(list[i], used), { type: settings.export.format }));
       c.width = c.height = 0;
     }
-    if (zip) {
-      setProgress('ZIPを作成中…');
-      const data = zipSync(files, { level: 0 });
-      download(new Blob([data.buffer as ArrayBuffer], { type: 'application/zip' }), `exif-frames_${new Date().toISOString().slice(0, 10)}.zip`);
-    }
-    toast(`${list.length}枚を書き出しました`);
+    setProgress('');
+    await deliver(files, zip);
   } catch (e) {
     console.error(e);
     toast('書き出しに失敗しました: ' + (e as Error).message);
@@ -686,7 +788,9 @@ async function exportCollage() {
   try {
     const c = await renderCollage(photos, settings);
     const blob = await canvasToBlob(c, settings.export.format, settings.export.quality);
-    download(blob, `exif-collage_${new Date().toISOString().slice(0, 10)}.${EXT[settings.export.format]}`);
+    const name = `exif-collage_${new Date().toISOString().slice(0, 10)}.${EXT[settings.export.format]}`;
+    setProgress('');
+    await deliver([new File([blob], name, { type: settings.export.format })], false);
   } catch (e) {
     console.error(e);
     toast('書き出しに失敗しました: ' + (e as Error).message);
@@ -700,6 +804,12 @@ async function exportCollage() {
 
 buildStaticControls();
 refreshAll();
+// PWA（ホーム画面に追加してオフラインでも使える）
+if (!IS_NATIVE && import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+}
+if (IS_NATIVE) document.body.classList.add('native');
+
 preloadFonts().then(() => {
   schedulePreview(0);
   scheduleThumbs(0);
