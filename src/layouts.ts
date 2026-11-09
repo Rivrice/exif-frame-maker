@@ -28,6 +28,7 @@ const upper = (s: string) => s.replace(/[a-z]/g, (c) => c.toUpperCase());
 // ---------- 四隅レイアウト用 ----------
 
 export const CORNER_KEYS: Corner[] = ['tl', 'tr', 'bl', 'br'];
+export const CORNER_SLOTS = 2; // 1つの隅に置ける項目数
 
 function cornerText(item: CornerItem, rc: RC): string {
   switch (item) {
@@ -56,6 +57,42 @@ function cornerItemHeight(item: CornerItem, t: number, rc: RC): number {
   if (item === 'makerModel') return hasLogo(rc) || rc.info.model ? 3.4 * t : 0;
   return cornerText(item, rc) ? cornerSpec(item, t, rc, '', '', '').size : 0;
 }
+
+const CORNER_GAP = 0.7;
+
+/** 1つの隅に重ねる項目全体の高さ */
+function cornerStackHeight(items: CornerItem[], t: number, rc: RC): number {
+  const hs = items.map((i) => cornerItemHeight(i, t, rc)).filter(Boolean);
+  return hs.reduce((a, h) => a + h, 0) + Math.max(0, hs.length - 1) * CORNER_GAP * t;
+}
+
+/** 1つの隅の項目を上から順に描く（y0 = 上端） */
+function drawCornerStack(
+  ctx: CanvasRenderingContext2D, rc: RC, items: CornerItem[], x: number, y0: number, align: 'left' | 'right',
+  t: number, F: string, main: string, sub: string, maxW: number,
+) {
+  let y = y0;
+  for (const item of items) {
+    const h = cornerItemHeight(item, t, rc);
+    if (!h) continue;
+    drawCornerItem(ctx, rc, item, x, y + h / 2, align, t, F, main, sub, maxW);
+    y += h + CORNER_GAP * t;
+  }
+}
+
+/** 四隅レイアウトの配置パターン */
+export const CORNER_PATTERNS: { id: string; corners: Record<Corner, CornerItem[]> }[] = [
+  { id: 'A', corners: { tl: ['maker'], tr: ['lens'], bl: ['date', 'credit'], br: [] } },
+  { id: 'B', corners: { tl: ['date', 'credit'], tr: [], bl: [], br: ['maker', 'lens'] } },
+  { id: 'C', corners: { tl: ['makerModel'], tr: ['date'], bl: ['params'], br: ['credit'] } },
+  { id: 'D', corners: { tl: ['makerModel', 'lens'], tr: [], bl: [], br: ['params', 'date'] } },
+  { id: 'E', corners: { tl: [], tr: [], bl: ['makerModel', 'params'], br: ['date', 'credit'] } },
+  { id: 'F', corners: { tl: ['makerModel', 'params'], tr: ['date', 'credit'], bl: [], br: [] } },
+  { id: 'G', corners: { tl: ['credit'], tr: ['makerModel'], bl: ['lens'], br: ['params'] } },
+  { id: 'H', corners: { tl: [], tr: ['maker', 'model'], bl: ['credit'], br: ['params', 'date'] } },
+  { id: 'I', corners: { tl: ['makerModel', 'params'], tr: [], bl: [], br: ['date', 'credit'] } },
+  { id: 'J', corners: { tl: [], tr: [], bl: ['credit'], br: ['makerModel', 'params'] } },
+];
 
 function drawCornerItem(
   ctx: CanvasRenderingContext2D, rc: RC, item: CornerItem, x: number, cy: number, align: 'left' | 'right',
@@ -563,12 +600,12 @@ export const LAYOUTS: Layout[] = [
       ctx.shadowColor = isLight(C.text) ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.6)';
       ctx.shadowBlur = 1.2 * t;
       for (const k of CORNER_KEYS) {
-        const item = rc.s.corners[k];
-        const h = cornerItemHeight(item, t, rc);
+        const items = rc.s.corners[k];
+        const h = cornerStackHeight(items, t, rc);
         if (!h) continue;
         const left = k.endsWith('l');
-        const cy = k.startsWith('t') ? pad + h / 2 : ih - pad - h / 2;
-        drawCornerItem(ctx, rc, item, left ? pad : iw - pad, cy, left ? 'left' : 'right', t, F, C.text, C.sub, iw / 2 - pad * 1.5);
+        const y0 = k.startsWith('t') ? pad : ih - pad - h;
+        drawCornerStack(ctx, rc, items, left ? pad : iw - pad, y0, left ? 'left' : 'right', t, F, C.text, C.sub, iw / 2 - pad * 1.5);
       }
       ctx.restore();
       return c;
@@ -588,7 +625,7 @@ export const LAYOUTS: Layout[] = [
       const F = fam(rc, this.font);
       const C = rc.s.colors;
       const b = 3.5 * u;
-      const hOf = (a: Corner, z: Corner) => Math.max(cornerItemHeight(rc.s.corners[a], t, rc), cornerItemHeight(rc.s.corners[z], t, rc));
+      const hOf = (a: Corner, z: Corner) => Math.max(cornerStackHeight(rc.s.corners[a], t, rc), cornerStackHeight(rc.s.corners[z], t, rc));
       const topH = hOf('tl', 'tr');
       const botH = hOf('bl', 'br');
       const top = topH ? Math.max(8 * u, topH + 3.5 * t) : b;
@@ -599,11 +636,12 @@ export const LAYOUTS: Layout[] = [
       ctx.fillRect(0, 0, c.width, c.height);
       drawPhoto(ctx, src, b, top, iw, ih);
       for (const k of CORNER_KEYS) {
-        const item = rc.s.corners[k];
-        if (!cornerItemHeight(item, t, rc)) continue;
+        const items = rc.s.corners[k];
+        const h = cornerStackHeight(items, t, rc);
+        if (!h) continue;
         const left = k.endsWith('l');
         const cy = k.startsWith('t') ? top / 2 : top + ih + bottom / 2;
-        drawCornerItem(ctx, rc, item, left ? b : W - b, cy, left ? 'left' : 'right', t, F, C.text, C.sub, iw / 2 - b);
+        drawCornerStack(ctx, rc, items, left ? b : W - b, cy - h / 2, left ? 'left' : 'right', t, F, C.text, C.sub, iw / 2 - b);
       }
       return c;
     },
