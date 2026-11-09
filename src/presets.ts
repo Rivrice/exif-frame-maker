@@ -3,7 +3,7 @@ import type { Settings } from './types';
 
 export type PresetData = Pick<
   Settings,
-  'layoutId' | 'colors' | 'font' | 'fonts' | 'textScale' | 'borderScale' | 'aspect' | 'show' | 'author' | 'credit' | 'corners'
+  'layoutId' | 'colors' | 'font' | 'fonts' | 'makerStyle' | 'textScale' | 'borderScale' | 'aspect' | 'show' | 'author' | 'credit' | 'corners'
 >;
 
 export interface MyPreset {
@@ -22,6 +22,7 @@ export function pickPresetData(s: Settings): PresetData {
     colors: s.colors,
     font: s.font,
     fonts: s.fonts,
+    makerStyle: s.makerStyle,
     textScale: s.textScale,
     borderScale: s.borderScale,
     aspect: s.aspect,

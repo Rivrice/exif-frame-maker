@@ -44,6 +44,8 @@ export interface Settings {
   font: string; // '' = レイアウト既定
   /** 項目ごとのフォント（'' = 全体のフォントと同じ） */
   fonts: Record<FontRole, string>;
+  /** メーカー名をロゴの雰囲気（大文字・太さ・斜体・字間）に寄せる */
+  makerStyle: boolean;
   textScale: number;
   borderScale: number;
   aspect: string; // 'auto' | '1:1' | '4:5' | ...

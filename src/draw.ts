@@ -181,7 +181,14 @@ export function maxLineWidth(ctx: CanvasRenderingContext2D, lines: Line[]) {
 // 利用者が自分で登録したロゴ画像がある場合のみ画像を使う（改変せずそのまま描画）。
 
 function makerSpec(rc: RC, h: number, color: string): TextSpec {
-  return { size: (h / 0.72) * 0.82, weight: 700, family: roleFont(rc, 'maker', baseFont(rc)), color };
+  const size = (h / 0.72) * 0.82;
+  const m = rc.info.maker;
+  // 「メーカー名のフォント」を個別に指定していればそれを優先
+  const chosen = rc.s.fonts?.maker && isFontAvailable(rc.s.fonts.maker);
+  if (!chosen && rc.s.makerStyle !== false && m?.font) {
+    return { size, weight: m.weight ?? 700, italic: m.italic, spacing: m.spacing, family: m.font, color };
+  }
+  return { size, weight: 700, family: roleFont(rc, 'maker', baseFont(rc)), color };
 }
 
 export function hasLogo(rc: RC) {

@@ -5,32 +5,37 @@
 export interface MakerStyle {
   key: string;
   match: RegExp;
-  display: string; // 表示用のメーカー名（一般的な表記）
+  display: string; // 表示用のメーカー名（大文字・小文字は各社ロゴの表記に合わせる）
+  /** ロゴの雰囲気に少し寄せるための書体（内蔵の一般的なフォントのみ。ロゴの形・色は再現しない） */
+  font?: string;
+  weight?: number;
+  italic?: boolean;
+  spacing?: number; // em単位の字間
 }
 
 export const MAKERS: MakerStyle[] = [
-  { key: 'canon', match: /canon/i, display: 'Canon' },
-  { key: 'nikon', match: /nikon/i, display: 'Nikon' },
-  { key: 'sony', match: /sony/i, display: 'Sony' },
-  { key: 'fujifilm', match: /fuji/i, display: 'Fujifilm' },
-  { key: 'om', match: /om digital|om system/i, display: 'OM System' },
-  { key: 'olympus', match: /olympus/i, display: 'Olympus' },
-  { key: 'panasonic', match: /panasonic|lumix/i, display: 'Panasonic' },
-  { key: 'leica', match: /leica/i, display: 'Leica' },
-  { key: 'pentax', match: /pentax/i, display: 'Pentax' },
-  { key: 'ricoh', match: /ricoh/i, display: 'Ricoh' },
-  { key: 'hasselblad', match: /hasselblad/i, display: 'Hasselblad' },
-  { key: 'sigma', match: /sigma/i, display: 'Sigma' },
-  { key: 'apple', match: /apple/i, display: 'Apple' },
-  { key: 'google', match: /google/i, display: 'Google' },
-  { key: 'samsung', match: /samsung/i, display: 'Samsung' },
-  { key: 'xiaomi', match: /xiaomi/i, display: 'Xiaomi' },
-  { key: 'dji', match: /dji|hasselblad.*dji/i, display: 'DJI' },
-  { key: 'gopro', match: /gopro/i, display: 'GoPro' },
-  { key: 'kodak', match: /kodak/i, display: 'Kodak' },
-  { key: 'minolta', match: /minolta/i, display: 'Minolta' },
-  { key: 'phaseone', match: /phase ?one/i, display: 'Phase One' },
-  { key: 'insta360', match: /insta360|arashi/i, display: 'Insta360' },
+  { key: 'canon', match: /canon/i, display: 'Canon', font: 'Playfair Display', weight: 800 },
+  { key: 'nikon', match: /nikon/i, display: 'Nikon', font: 'Inter', weight: 800, italic: true },
+  { key: 'sony', match: /sony/i, display: 'SONY', font: 'Playfair Display', weight: 700, spacing: 0.1 },
+  { key: 'fujifilm', match: /fuji/i, display: 'FUJIFILM', font: 'Montserrat', weight: 800, spacing: 0.02 },
+  { key: 'om', match: /om digital|om system/i, display: 'OM SYSTEM', font: 'Montserrat', weight: 700, spacing: 0.04 },
+  { key: 'olympus', match: /olympus/i, display: 'OLYMPUS', font: 'Playfair Display', weight: 700, spacing: 0.06 },
+  { key: 'panasonic', match: /panasonic|lumix/i, display: 'Panasonic', font: 'Inter', weight: 800 },
+  { key: 'leica', match: /leica/i, display: 'Leica', font: 'Cormorant Garamond', weight: 700, italic: true },
+  { key: 'pentax', match: /pentax/i, display: 'PENTAX', font: 'Montserrat', weight: 800, spacing: 0.08 },
+  { key: 'ricoh', match: /ricoh/i, display: 'RICOH', font: 'Montserrat', weight: 800, spacing: 0.05 },
+  { key: 'hasselblad', match: /hasselblad/i, display: 'HASSELBLAD', font: 'Montserrat', weight: 500, spacing: 0.22 },
+  { key: 'sigma', match: /sigma/i, display: 'SIGMA', font: 'Montserrat', weight: 800, spacing: 0.04 },
+  { key: 'apple', match: /apple/i, display: 'Apple', font: 'Inter', weight: 600 },
+  { key: 'google', match: /google/i, display: 'Google', font: 'Inter', weight: 500 },
+  { key: 'samsung', match: /samsung/i, display: 'SAMSUNG', font: 'Montserrat', weight: 800, spacing: 0.08 },
+  { key: 'xiaomi', match: /xiaomi/i, display: 'Xiaomi', font: 'Inter', weight: 600 },
+  { key: 'dji', match: /dji|hasselblad.*dji/i, display: 'DJI', font: 'Montserrat', weight: 900, spacing: 0.04 },
+  { key: 'gopro', match: /gopro/i, display: 'GoPro', font: 'Inter', weight: 800 },
+  { key: 'kodak', match: /kodak/i, display: 'Kodak', font: 'Inter', weight: 800 },
+  { key: 'minolta', match: /minolta/i, display: 'MINOLTA', font: 'Montserrat', weight: 700, spacing: 0.06 },
+  { key: 'phaseone', match: /phase ?one/i, display: 'PHASE ONE', font: 'Montserrat', weight: 600, spacing: 0.12 },
+  { key: 'insta360', match: /insta360|arashi/i, display: 'Insta360', font: 'Inter', weight: 700 },
 ];
 
 export function findMaker(make: string): MakerStyle | null {

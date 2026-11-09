@@ -48,6 +48,7 @@ const DEFAULTS: Settings = {
   colors: { ...LAYOUTS[0].colors },
   font: '',
   fonts: { maker: '', model: '', lens: '', params: '', date: '', credit: '' },
+  makerStyle: true,
   textScale: 1,
   borderScale: 1,
   aspect: 'auto',
@@ -89,6 +90,7 @@ function mergeSettings(raw: any): Settings {
     colors: { bg: color('bg'), text: color('text'), sub: color('sub'), accent: color('accent') },
     font: fontName(r.font),
     fonts: Object.fromEntries(FONT_ROLES.map((k) => [k, fontName(fo[k])])) as Settings['fonts'],
+    makerStyle: typeof r.makerStyle === 'boolean' ? r.makerStyle : D.makerStyle,
     textScale: num(r.textScale, D.textScale, 0.5, 1.8),
     borderScale: num(r.borderScale, D.borderScale, 0.3, 2.5),
     aspect: oneOf(r.aspect, ASPECTS, 'auto'),
@@ -784,6 +786,7 @@ function renderControls() {
   const set = (id: string, v: string | number) => (($('#' + id) as HTMLInputElement).value = String(v));
   const out = (id: string, v: string) => ($('#' + id + 'Out').textContent = v);
   fillFontSelects();
+  $<HTMLInputElement>('#makerStyle').checked = settings.makerStyle;
   set('aspect', settings.aspect);
   set('textScale', settings.textScale);
   out('textScale', `${Math.round(settings.textScale * 100)}%`);
@@ -804,7 +807,7 @@ function renderControls() {
   });
   $('#creditColorField').hidden = cornerLayout || settings.credit.position === 'auto';
   $('#creditHint').textContent = cornerLayout
-    ? '四隅レイアウトでは「四隅に表示する項目」でクレジットの位置を選びます。'
+    ? '四隅レイアウトでは、レイアウト画面の「四隅に表示する項目」でクレジットの位置を選びます。'
     : settings.show.artist
       ? ''
       : '「表示する項目」で撮影者がオフになっています。';
@@ -903,8 +906,11 @@ function bindFonts() {
   adv.addEventListener('click', () => {
     const open = $('#advPanel').hidden;
     $('#advPanel').hidden = !open;
-    adv.textContent = open ? '詳細オプションを閉じる' : '詳細オプションを表示';
     adv.setAttribute('aria-expanded', String(open));
+  });
+  $<HTMLInputElement>('#makerStyle').addEventListener('change', (e) => {
+    settings.makerStyle = (e.target as HTMLInputElement).checked;
+    update();
   });
   $$<HTMLInputElement>('[data-font-import]').forEach((input) => {
     // Androidアプリではフォントの種類指定が効かないことがあるため全ファイルを許可

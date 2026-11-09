@@ -70,49 +70,8 @@
           <div class="corner-grid" id="cornerGrid"></div>
         </details>
 
-        <details open data-tab="color">
-          <summary>カラー</summary>
-          <div class="colors">
-            <label><input type="color" data-color="bg" /> 背景・フレーム</label>
-            <label><input type="color" data-color="text" /> メイン文字</label>
-            <label><input type="color" data-color="sub" /> サブ文字</label>
-            <label><input type="color" data-color="accent" /> アクセント</label>
-          </div>
-          <div class="swatches" id="swatches"></div>
-          <button id="resetColors" class="link">このレイアウトの初期色に戻す</button>
-        </details>
-
-        <details open data-tab="text">
-          <summary>テキスト・サイズ</summary>
-          <div class="field">
-            <span>フォント（全体）</span>
-            <select id="font" data-font-select="global"></select>
-          </div>
-          <div class="font-tools">
-            <label class="link">＋ フォントを読み込む<input type="file" data-font-import="global" hidden /></label>
-            <button class="link" id="advToggle" aria-expanded="false">詳細オプションを表示</button>
-          </div>
-          <div class="adv" id="advPanel" hidden>
-            <div class="subhead">項目ごとのフォント</div>
-            <div class="font-roles">
-              <label class="field"><span>メーカー名</span><select data-font-role="maker"></select></label>
-              <label class="field"><span>機種</span><select data-font-role="model"></select></label>
-              <label class="field"><span>レンズ</span><select data-font-role="lens"></select></label>
-              <label class="field"><span>撮影設定</span><select data-font-role="params"></select></label>
-              <label class="field"><span>撮影日時</span><select data-font-role="date"></select></label>
-            </div>
-            <div class="subhead">読み込んだフォント</div>
-            <ul class="user-fonts" id="userFonts"></ul>
-            <label class="link">＋ フォントを読み込む<input type="file" data-font-import="" hidden /></label>
-            <p class="hint">
-              TTF / OTF / WOFF / WOFF2 に対応。フォントはこの端末内にだけ保存されます。
-              画像に使ってよいか、フォントのライセンスをご確認ください。マイプリセットを書き出してもフォント本体は含まれません。
-            </p>
-          </div>
-          <div class="field">
-            <span>文字サイズ <output id="textScaleOut"></output></span>
-            <input id="textScale" type="range" min="0.5" max="1.8" step="0.05" />
-          </div>
+        <details open data-tab="layout">
+          <summary>フチ・出力比率</summary>
           <div class="field">
             <span>フチの太さ <output id="borderScaleOut"></output></span>
             <input id="borderScale" type="range" min="0.3" max="2.5" step="0.05" />
@@ -130,35 +89,80 @@
               <option value="16:9">16:9 横</option>
             </select>
           </div>
+        </details>
+
+        <details open data-tab="color">
+          <summary>カラー</summary>
+          <div class="colors">
+            <label><input type="color" data-color="bg" /> 背景・フレーム</label>
+            <label><input type="color" data-color="text" /> メイン文字</label>
+            <label><input type="color" data-color="sub" /> サブ文字</label>
+            <label><input type="color" data-color="accent" /> アクセント</label>
+          </div>
+          <div class="swatches" id="swatches"></div>
+          <button id="resetColors" class="link">このレイアウトの初期色に戻す</button>
+        </details>
+
+        <details open data-tab="text">
+          <summary>表示する項目</summary>
           <div class="toggles" id="toggles"></div>
-          <div class="subhead">クレジット（撮影者名）</div>
+        </details>
+
+        <details open data-tab="text">
+          <summary>文字</summary>
           <div class="field">
-            <span>撮影者名（任意）</span>
-            <input id="author" type="text" placeholder="空欄ならExifのArtistを使用" />
+            <span>フォント<label class="mini-link">＋読込<input type="file" data-font-import="global" hidden /></label></span>
+            <select id="font" data-font-select="global"></select>
           </div>
           <div class="field">
-            <span>クレジットの文字サイズ <output id="creditScaleOut"></output></span>
+            <span>文字サイズ <output id="textScaleOut"></output></span>
+            <input id="textScale" type="range" min="0.5" max="1.8" step="0.05" />
+          </div>
+          <label class="switch"><input type="checkbox" id="makerStyle" /><span>メーカー名をロゴの雰囲気に寄せる</span></label>
+          <button class="more" id="advToggle" aria-expanded="false" aria-controls="advPanel">項目ごとのフォント</button>
+          <div class="adv" id="advPanel" hidden>
+            <div class="font-roles">
+              <label class="field"><span>メーカー名</span><select data-font-role="maker"></select></label>
+              <label class="field"><span>機種</span><select data-font-role="model"></select></label>
+              <label class="field"><span>レンズ</span><select data-font-role="lens"></select></label>
+              <label class="field"><span>撮影設定</span><select data-font-role="params"></select></label>
+              <label class="field"><span>撮影日時</span><select data-font-role="date"></select></label>
+            </div>
+            <div class="subhead">読み込んだフォント</div>
+            <ul class="user-fonts" id="userFonts"></ul>
+            <label class="link">＋ フォントを読み込む<input type="file" data-font-import="" hidden /></label>
+            <p class="hint">
+              TTF / OTF / WOFF / WOFF2 に対応。フォントはこの端末内にだけ保存されます。
+              画像に使ってよいか、フォントのライセンスをご確認ください。
+            </p>
+          </div>
+        </details>
+
+        <details open data-tab="text">
+          <summary>クレジット（撮影者名）</summary>
+          <div class="field">
+            <input id="author" type="text" placeholder="撮影者名（空欄ならExifのArtist）" aria-label="撮影者名" />
+          </div>
+          <div class="field">
+            <span>位置</span>
+            <div class="seg5" id="creditPos" role="radiogroup" aria-label="クレジットの位置">
+              <button data-pos="auto">自動</button>
+              <button data-pos="tl">左上</button>
+              <button data-pos="tr">右上</button>
+              <button data-pos="bl">左下</button>
+              <button data-pos="br">右下</button>
+            </div>
+          </div>
+          <div class="field">
+            <span>文字サイズ <output id="creditScaleOut"></output></span>
             <input id="creditScale" type="range" min="0.5" max="3" step="0.05" />
           </div>
           <div class="field">
-            <span>クレジットのフォント</span>
+            <span>フォント<label class="mini-link">＋読込<input type="file" data-font-import="credit" hidden /></label></span>
             <select data-font-role="credit"></select>
           </div>
-          <div class="font-tools">
-            <label class="link">＋ クレジット用のフォントを読み込む<input type="file" data-font-import="credit" hidden /></label>
-          </div>
-          <div class="field">
-            <span>クレジットの位置</span>
-            <div class="corner-pick" id="creditPos" role="radiogroup" aria-label="クレジットの位置">
-              <button data-pos="tl" aria-label="左上">左上</button>
-              <button data-pos="tr" aria-label="右上">右上</button>
-              <button data-pos="auto" class="wide" aria-label="レイアウトに合わせる">レイアウトに合わせる</button>
-              <button data-pos="bl" aria-label="左下">左下</button>
-              <button data-pos="br" aria-label="右下">右下</button>
-            </div>
-          </div>
           <div class="field" id="creditColorField">
-            <span>四隅に置くときの文字色</span>
+            <span>写真の上に置くときの文字色</span>
             <select id="creditColor">
               <option value="light">白（影付き）</option>
               <option value="dark">黒</option>
