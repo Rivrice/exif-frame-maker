@@ -44,9 +44,6 @@ button, input, select { font: inherit; color: inherit; }
   width: 22px; height: 22px; border-radius: 4px; border: 3px solid var(--text);
   background: linear-gradient(var(--accent) 0 65%, transparent 65%);
 }
-.seg { display: inline-flex; background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 3px; }
-.seg button { border: 0; background: none; padding: 6px 14px; border-radius: 999px; cursor: pointer; color: var(--muted); }
-.seg button.active { background: var(--text); color: var(--panel); }
 
 .app {
   flex: 1; min-height: 0;
@@ -189,7 +186,6 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
   .topbar { padding: calc(6px + env(safe-area-inset-top)) 12px 6px; }
   .brand h1 { font-size: 15px; }
   .brand-mark { width: 18px; height: 18px; border-width: 2.5px; }
-  .seg button { padding: 6px 12px; font-size: 13px; }
 
   .app {
     display: grid;
@@ -326,16 +322,7 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 }
 
 /* ヘッダーが折り返さないように */
-.brand h1, .seg button { white-space: nowrap; }
-@media (max-width: 420px) {
-  .brand h1 { font-size: 13.5px; }
-  .seg button { padding: 6px 9px; font-size: 12px; }
-  .icon-btn { width: 30px; height: 30px; }
-  .top-actions { gap: 6px; }
-}
-@media (max-width: 360px) {
-  .brand h1 { display: none; }
-}
+.brand h1 { white-space: nowrap; }
 
 /* マイプリセット */
 .my-presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }

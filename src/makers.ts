@@ -40,7 +40,9 @@ export function findMaker(make: string): MakerStyle | null {
 
 export function genericMaker(make: string): MakerStyle {
   const display = make
-    .replace(/\b(corporation|corp\.?|co\.?,? ?ltd\.?|inc\.?|camera ag|imaging|company)\b/gi, '')
+    .replace(/\b(corporation|corp|co|ltd|inc|camera ag|imaging|company)\b\.?/gi, '')
+    .replace(/[\s,.]+$/, '')
+    .replace(/\s{2,}/g, ' ')
     .trim();
   return { key: 'other', match: /$^/, display: display || make };
 }

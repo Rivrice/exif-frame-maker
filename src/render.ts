@@ -1,5 +1,5 @@
 import type { PhotoItem, Settings } from './types';
-import { buildInfo, canvas, drawText, isLight, lastPhotoRect, padToAspect, parseAspect, type RC } from './draw';
+import { buildInfo, drawText, isLight, lastPhotoRect, padToAspect, parseAspect, resetPhotoRect, type RC } from './draw';
 import { getLayout } from './layouts';
 import { getLogo } from './logos';
 
@@ -31,7 +31,10 @@ async function ensureGlyphs(texts: string[]) {
 }
 
 export const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-const MAX_AREA = IS_IOS ? 16_000_000 : 120_000_000;
+const IS_ANDROID = /Android/i.test(navigator.userAgent);
+// ブラウザのキャンバス上限（面積・一辺）を超えると真っ白／書き出し失敗になるため、それ未満に抑える
+const MAX_AREA = IS_IOS ? 16_000_000 : IS_ANDROID ? 50_000_000 : 120_000_000;
+const MAX_SIDE = IS_IOS || IS_ANDROID ? 16_384 : 32_000;
 
 async function context(p: PhotoItem, s: Settings): Promise<RC> {
   const info = buildInfo(p, s);
@@ -70,6 +73,7 @@ function renderWith(p: PhotoItem, s: Settings, rc: RC, k: number): HTMLCanvasEle
   const layout = getLayout(s.layoutId);
   const iw = Math.max(1, Math.round(p.width * k));
   const ih = Math.max(1, Math.round(p.height * k));
+  resetPhotoRect();
   let out = layout.render(p.source, iw, ih, rc);
   if (s.credit.position !== 'auto' && !layout.corners && rc.info.artist) drawCornerCredit(out, rc, layout.font);
   const aspect = parseAspect(s.aspect);
@@ -94,84 +98,8 @@ export async function renderOutput(p: PhotoItem, s: Settings, maxEdge = s.export
   const areaAtFull = (probe.width * probe.height) / (probeK * probeK);
   let k = 1;
   if (maxEdge > 0) k = Math.min(k, maxEdge / longAtFull);
-  k = Math.min(k, Math.sqrt(MAX_AREA / areaAtFull));
+  k = Math.min(k, Math.sqrt(MAX_AREA / areaAtFull), MAX_SIDE / longAtFull);
   return renderWith(p, s, rc, k);
-}
-
-// ---------- コラージュ ----------
-
-interface Tile {
-  p: PhotoItem;
-  aspect: number; // 出力の w/h
-  ratio: number; // 出力幅 / 写真幅
-  rc: RC;
-}
-
-export async function renderCollage(photos: PhotoItem[], s: Settings, widthOverride?: number) {
-  const cs = s.collage;
-  const W = widthOverride ?? cs.width;
-  const gap = (W * cs.gap) / 1000;
-  const tiles: Tile[] = [];
-  for (const p of photos) {
-    const rc = await context(p, s);
-    const probeK = 300 / Math.max(p.width, p.height);
-    const probe = renderWith(p, s, rc, probeK);
-    tiles.push({ p, rc, aspect: probe.width / probe.height, ratio: probe.width / (p.width * probeK) });
-  }
-  const inner = W - gap * 2;
-  type Place = { tile: Tile; x: number; y: number; w: number; h: number };
-  const places: Place[] = [];
-  let y = gap;
-
-  if (cs.type === 'justified') {
-    const target = (W * cs.rowHeight) / 100;
-    let row: Tile[] = [];
-    const flush = (last: boolean) => {
-      if (!row.length) return;
-      const sumA = row.reduce((a, t) => a + t.aspect, 0);
-      const gaps = gap * (row.length - 1);
-      let h = (inner - gaps) / sumA;
-      if (last && h > target * 1.2) h = target;
-      const rowW = sumA * h + gaps;
-      let x = gap + (inner - rowW) / 2;
-      for (const t of row) {
-        const w = t.aspect * h;
-        places.push({ tile: t, x, y, w, h });
-        x += w + gap;
-      }
-      y += h + gap;
-      row = [];
-    };
-    for (const t of tiles) {
-      row.push(t);
-      const sumA = row.reduce((a, r) => a + r.aspect, 0);
-      if (sumA * target + gap * (row.length - 1) >= inner) flush(false);
-    }
-    flush(true);
-  } else {
-    const cols = Math.max(1, Math.min(cs.cols, tiles.length || 1));
-    const cw = (inner - gap * (cols - 1)) / cols;
-    const ch = cw; // 正方形セルに contain 配置
-    tiles.forEach((t, i) => {
-      const c = i % cols;
-      const r = Math.floor(i / cols);
-      const h = Math.min(cw / t.aspect, ch);
-      const w = t.aspect * h;
-      places.push({ tile: t, x: gap + c * (cw + gap) + (cw - w) / 2, y: gap + r * (ch + gap) + (ch - h) / 2, w, h });
-    });
-    y = gap + Math.ceil(tiles.length / cols) * (ch + gap);
-  }
-
-  const { c, ctx } = canvas(W, Math.max(y, gap * 2 + 1));
-  ctx.fillStyle = cs.bg;
-  ctx.fillRect(0, 0, c.width, c.height);
-  for (const pl of places) {
-    const { p, ratio, rc } = pl.tile;
-    const k = Math.min(1, pl.w / ratio / p.width);
-    const img = renderWith(p, s, rc, k);
-    ctx.drawImage(img, pl.x, pl.y, pl.w, pl.h);
-  }
-  return c;
 }
 
 export function canvasToBlob(c: HTMLCanvasElement, type: string, quality: number): Promise<Blob> {

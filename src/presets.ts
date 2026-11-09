@@ -31,8 +31,17 @@ export function pickPresetData(s: Settings): PresetData {
   });
 }
 
+/** キーの順番に左右されない比較用の文字列 */
+function stable(v: unknown): string {
+  if (v && typeof v === 'object' && !Array.isArray(v)) {
+    const o = v as Record<string, unknown>;
+    return '{' + Object.keys(o).sort().map((k) => JSON.stringify(k) + ':' + stable(o[k])).join(',') + '}';
+  }
+  return JSON.stringify(v) ?? 'null';
+}
+
 export function samePreset(a: PresetData, b: PresetData) {
-  return JSON.stringify(a) === JSON.stringify(b);
+  return stable(a) === stable(b);
 }
 
 export function loadPresets(): MyPreset[] {

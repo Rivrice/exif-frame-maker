@@ -33,7 +33,7 @@ import { buildInfo } from './draw';
 import { CORNER_KEYS, LAYOUTS, getLayout } from './layouts';
 import { getLogo, logoOrigin, removeUserLogo, setUserLogo } from './logos';
 import { MAKERS } from './makers';
-import { IS_IOS, canvasToBlob, preloadFonts, renderCollage, renderOutput, renderPreview } from './render';
+import { IS_IOS, canvasToBlob, preloadFonts, renderOutput, renderPreview } from './render';
 import type { Colors, Corner, CornerItem, CreditPosition, ExifInfo, PhotoItem, Settings } from './types';
 import { IS_NATIVE, nativeSave, nativeShare } from './native';
 import { exportJson, loadPresets, parseImport, pickPresetData, samePreset, savePresets, type MyPreset } from './presets';
@@ -53,25 +53,55 @@ const DEFAULTS: Settings = {
   author: '',
   credit: { scale: 1, position: 'auto', color: 'light' },
   corners: { tl: 'makerModel', tr: 'date', bl: 'params', br: 'credit' },
-  mode: 'single',
-  collage: { type: 'justified', width: 4000, rowHeight: 30, cols: 3, gap: 12, bg: '#eeeeee' },
   export: { format: 'image/jpeg', quality: 0.92, maxEdge: 0 },
 };
 
-/** 足りない項目を既定値で補う（古い保存データやプリセットにも対応） */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+/* eslint-disable @typescript-eslint/no-explicit-any */
+const obj = (v: any) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
+const num = (v: any, def: number, min: number, max: number) =>
+  typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : def;
+const oneOf = <T extends string>(v: any, list: readonly T[], def: T): T => (list.includes(v) ? v : def);
+const HEX = /^#[0-9a-f]{6}$/i;
+const FONTS = ['', 'Inter', 'Montserrat', 'Playfair Display', 'Cormorant Garamond', 'Oswald', 'JetBrains Mono', 'Noto Sans JP'] as const;
+const ASPECTS = ['auto', '1:1', '4:5', '3:4', '2:3', '9:16', '3:2', '16:9'] as const;
+const CORNER_ITEMS: CornerItem[] = ['', 'maker', 'makerModel', 'model', 'lens', 'params', 'date', 'credit'];
+
+/**
+ * 保存データ・読み込んだプリセットを検証し、足りない／不正な項目は既定値で補う。
+ * （壊れた値が保存されると、再読み込みしても描画できなくなるのを防ぐ）
+ */
 function mergeSettings(raw: any): Settings {
-  return structuredClone({
-    ...DEFAULTS,
-    ...raw,
-    colors: { ...DEFAULTS.colors, ...raw.colors },
-    show: { ...DEFAULTS.show, ...raw.show },
-    collage: { ...DEFAULTS.collage, ...raw.collage },
-    credit: { ...DEFAULTS.credit, ...raw.credit },
-    corners: { ...DEFAULTS.corners, ...raw.corners },
-    export: { ...DEFAULTS.export, ...raw.export },
-  });
+  const r = obj(raw);
+  const c = obj(r.colors), sh = obj(r.show), cr = obj(r.credit), co = obj(r.corners), ex = obj(r.export);
+  const D = DEFAULTS;
+  const color = (k: keyof Colors) => (typeof c[k] === 'string' && HEX.test(c[k]) ? c[k] : D.colors[k]);
+  const show = {} as Settings['show'];
+  for (const k of Object.keys(D.show) as (keyof Settings['show'])[]) show[k] = typeof sh[k] === 'boolean' ? sh[k] : D.show[k];
+  const corners = {} as Settings['corners'];
+  for (const k of CORNER_KEYS) corners[k] = oneOf(co[k], CORNER_ITEMS, D.corners[k]);
+  return {
+    layoutId: getLayout(typeof r.layoutId === 'string' ? r.layoutId : D.layoutId).id,
+    colors: { bg: color('bg'), text: color('text'), sub: color('sub'), accent: color('accent') },
+    font: oneOf(r.font, FONTS, ''),
+    textScale: num(r.textScale, D.textScale, 0.5, 1.8),
+    borderScale: num(r.borderScale, D.borderScale, 0.3, 2.5),
+    aspect: oneOf(r.aspect, ASPECTS, 'auto'),
+    show,
+    author: typeof r.author === 'string' ? r.author.slice(0, 100) : '',
+    credit: {
+      scale: num(cr.scale, D.credit.scale, 0.5, 3),
+      position: oneOf(cr.position, ['auto', 'tl', 'tr', 'bl', 'br'] as const, 'auto'),
+      color: oneOf(cr.color, ['light', 'dark', 'text'] as const, 'light'),
+    },
+    corners,
+    export: {
+      format: oneOf(ex.format, ['image/jpeg', 'image/png', 'image/webp'] as const, 'image/jpeg'),
+      quality: num(ex.quality, D.export.quality, 0.5, 1),
+      maxEdge: [0, 6000, 4096, 3000, 2048, 1080].includes(ex.maxEdge) ? ex.maxEdge : 0,
+    },
+  };
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 function loadSettings(): Settings {
   try {
@@ -168,8 +198,15 @@ function current(): PhotoItem {
 
 // ---------- 写真の読み込み ----------
 
-async function addFiles(files: FileList | File[]) {
-  const list = [...files].filter((f) => f.size > 0);
+/** 読み込みは順番に処理する（読み込み中に追加しても処理が重ならないように） */
+let addQueue: Promise<void> = Promise.resolve();
+function addFiles(files: FileList | File[]) {
+  const list = [...files];
+  addQueue = addQueue.then(() => addFilesNow(list)).catch((e) => console.error(e));
+}
+
+async function addFilesNow(files: File[]) {
+  const list = files.filter((f) => f.size > 0);
   if (!list.length) return;
   setBusy(true);
   let ok = 0;
@@ -249,13 +286,10 @@ async function drawPreview() {
   const token = ++previewToken;
   const stage = $('#stage');
   const target = Math.min(IS_MOBILE ? 1600 : 2400, Math.max(stage.clientWidth, stage.clientHeight, 300) * Math.min(2, devicePixelRatio || 1));
+  const p = current();
   let out: HTMLCanvasElement;
   try {
-    if (settings.mode === 'collage' && photos.length) {
-      out = await renderCollage(photos, settings, Math.max(800, target));
-    } else {
-      out = await renderPreview(current(), settings, target);
-    }
+    out = await renderPreview(p, settings, target);
   } catch (e) {
     console.error(e);
     return;
@@ -265,14 +299,8 @@ async function drawPreview() {
   cv.width = out.width;
   cv.height = out.height;
   cv.getContext('2d')!.drawImage(out, 0, 0);
-  const p = current();
-  const meta = $('#meta');
-  if (settings.mode === 'collage' && photos.length) {
-    meta.textContent = `${photos.length}枚をまとめて配置・出力幅 ${settings.collage.width}px`;
-  } else {
-    const lay = getLayout(settings.layoutId);
-    meta.textContent = `${p.id === 'sample' ? 'サンプル画像' : p.name}　${p.width}×${p.height}　${lay.name}${p.note ? `　(${p.note})` : ''}`;
-  }
+  const lay = getLayout(settings.layoutId);
+  $('#meta').textContent = `${p.id === 'sample' ? 'サンプル画像' : p.name}　${p.width}×${p.height}　${lay.name}${p.note ? `　(${p.note})` : ''}`;
 }
 
 async function drawPresetThumbs() {
@@ -291,7 +319,7 @@ async function drawPresetThumbs() {
   }
   for (const mp of myPresets) {
     if (token !== thumbsToken) return;
-    const s = mergeSettings({ ...settings, ...mp.data, aspect: 'auto' });
+    const s = { ...mergeSettings({ ...settings, ...mp.data }), aspect: 'auto' };
     const out = await renderPreview(p, s, 260);
     const cv = document.querySelector<HTMLCanvasElement>(`[data-mp="${mp.id}"] canvas`);
     if (!cv) continue;
@@ -304,7 +332,8 @@ async function drawPresetThumbs() {
 
 // ---------- マイプリセット ----------
 
-let myPresets: MyPreset[] = loadPresets();
+// 保存データも検証して、壊れた値があれば既定値で補う
+let myPresets: MyPreset[] = loadPresets().map((p) => ({ ...p, data: pickPresetData(mergeSettings(p.data)) }));
 let mpTarget: MyPreset | null = null;
 
 function persistPresets() {
@@ -435,7 +464,9 @@ function bindMyPresets() {
       let added = 0;
       for (const p of list) {
         if (ids.has(p.id) && myPresets.some((q) => q.id === p.id && samePreset(q.data, p.data) && q.name === p.name)) continue;
-        myPresets.push({ ...p, id: ids.has(p.id) ? uid() : p.id });
+        const id = ids.has(p.id) ? uid() : p.id;
+        ids.add(id);
+        myPresets.push({ ...p, id, data: pickPresetData(mergeSettings({ ...settings, ...p.data })) });
         added++;
       }
       persistPresets();
@@ -451,6 +482,7 @@ function bindMyPresets() {
 function refreshAll() {
   renderList();
   renderControls();
+  markActivePreset();
   renderExifForm();
   renderMakers();
   schedulePreview();
@@ -478,6 +510,7 @@ function renderList() {
     li.querySelector('.pl-sub')!.textContent = [info.maker?.display, info.model].filter(Boolean).join(' ') || 'Exif情報なし';
     li.addEventListener('click', (e) => {
       if ((e.target as HTMLElement).closest('.pl-del')) {
+        if (busy) return toast('処理中は削除できません');
         const i = photos.indexOf(p);
         photos.splice(i, 1);
         URL.revokeObjectURL(p.thumbUrl);
@@ -588,9 +621,6 @@ function buildStaticControls() {
   bindRange('creditScale', () => settings.credit.scale, (v) => (settings.credit.scale = v), (v) => `${Math.round(v * 100)}%`);
   bindRange('borderScale', () => settings.borderScale, (v) => (settings.borderScale = v), (v) => `${Math.round(v * 100)}%`);
   bindRange('quality', () => settings.export.quality, (v) => (settings.export.quality = v), (v) => `${Math.round(v * 100)}`, false);
-  bindRange('rowHeight', () => settings.collage.rowHeight, (v) => (settings.collage.rowHeight = v), (v) => `${v}%`, false);
-  bindRange('cols', () => settings.collage.cols, (v) => (settings.collage.cols = v), (v) => `${v}`, false);
-  bindRange('gap', () => settings.collage.gap, (v) => (settings.collage.gap = v), (v) => `${v}‰`, false);
 
   const bindSelect = (id: string, set: (v: string) => void, thumbs = true) =>
     $<HTMLSelectElement>('#' + id).addEventListener('change', (e) => {
@@ -601,16 +631,6 @@ function buildStaticControls() {
   bindSelect('aspect', (v) => (settings.aspect = v));
   bindSelect('format', (v) => (settings.export.format = v as Settings['export']['format']), false);
   bindSelect('maxEdge', (v) => (settings.export.maxEdge = Number(v)), false);
-  bindSelect('collageType', (v) => (settings.collage.type = v as Settings['collage']['type']), false);
-
-  $<HTMLInputElement>('#collageWidth').addEventListener('change', (e) => {
-    settings.collage.width = Math.min(12000, Math.max(800, Number((e.target as HTMLInputElement).value) || 4000));
-    update(false);
-  });
-  $<HTMLInputElement>('#collageBg').addEventListener('input', (e) => {
-    settings.collage.bg = (e.target as HTMLInputElement).value;
-    update(false);
-  });
   // クレジットの位置
   $$('#creditPos [data-pos]').forEach((b) =>
     b.addEventListener('click', () => {
@@ -648,16 +668,10 @@ function buildStaticControls() {
     update();
   });
 
-  $$('[data-mode]').forEach((b) =>
-    b.addEventListener('click', () => {
-      settings.mode = b.dataset.mode as Settings['mode'];
-      update(false);
-    }),
-  );
-
   // ファイル
   const file = $<HTMLInputElement>('#file');
   file.accept = IS_NATIVE ? '' : ACCEPT; // Androidアプリでは拡張子指定が効かないため全ファイルを許可
+  if (IS_NATIVE) $<HTMLInputElement>('#mpImport').accept = '';
   file.addEventListener('change', () => {
     if (file.files) addFiles(file.files);
     file.value = '';
@@ -676,7 +690,11 @@ function buildStaticControls() {
     if (e.dataTransfer?.files.length) addFiles(e.dataTransfer.files);
   });
   $('#clear').addEventListener('click', () => {
-    for (const p of photos) URL.revokeObjectURL(p.thumbUrl);
+    if (busy) return;
+    for (const p of photos) {
+      URL.revokeObjectURL(p.thumbUrl);
+      if (p.source instanceof ImageBitmap) p.source.close();
+    }
     photos.length = 0;
     selectedId = '';
     refreshAll();
@@ -692,7 +710,6 @@ function buildStaticControls() {
   $('#saveOne').addEventListener('click', () => exportPhotos([current()], false));
   $('#saveZip').addEventListener('click', () => exportPhotos(photos, true));
   $('#saveAll').addEventListener('click', () => exportPhotos(photos, false));
-  $('#saveCollage').addEventListener('click', exportCollage);
 
   window.addEventListener('resize', () => schedulePreview(150));
 
@@ -729,7 +746,7 @@ function buildStaticControls() {
     if (IS_NATIVE) {
       try {
         const dir = await nativeSave(pending.files);
-        toast(`${pending.files.length}枚を「${dir}」に保存しました`);
+        toast(`${pending.files.length}件を「${dir}」に保存しました`);
       } catch (e) {
         toast('保存できませんでした: ' + (e as Error).message);
         return;
@@ -746,7 +763,7 @@ function buildStaticControls() {
 }
 
 function renderControls() {
-  $$('.preset').forEach((b) => b.classList.toggle('active', b.dataset.layout === settings.layoutId));
+  $$('.preset[data-layout]').forEach((b) => b.classList.toggle('active', b.dataset.layout === settings.layoutId));
   $$<HTMLInputElement>('[data-color]').forEach((inp) => (inp.value = settings.colors[inp.dataset.color as keyof Colors]));
   $$<HTMLInputElement>('[data-show]').forEach((inp) => (inp.checked = settings.show[inp.dataset.show as keyof Settings['show']]));
   const set = (id: string, v: string | number) => (($('#' + id) as HTMLInputElement).value = String(v));
@@ -761,15 +778,6 @@ function renderControls() {
   set('quality', settings.export.quality);
   out('quality', `${Math.round(settings.export.quality * 100)}`);
   set('maxEdge', settings.export.maxEdge);
-  set('collageType', settings.collage.type);
-  set('rowHeight', settings.collage.rowHeight);
-  out('rowHeight', `${settings.collage.rowHeight}%`);
-  set('cols', settings.collage.cols);
-  out('cols', `${settings.collage.cols}`);
-  set('gap', settings.collage.gap);
-  out('gap', `${settings.collage.gap}‰`);
-  set('collageWidth', settings.collage.width);
-  set('collageBg', settings.collage.bg);
   set('author', settings.author);
   set('creditScale', settings.credit.scale);
   out('creditScale', `${Math.round(settings.credit.scale * 100)}%`);
@@ -788,17 +796,8 @@ function renderControls() {
   $('#cornerPanel').hidden = !cornerLayout;
   $$<HTMLSelectElement>('[data-corner]').forEach((sel) => (sel.value = settings.corners[sel.dataset.corner as Corner]));
 
-  const collage = settings.mode === 'collage';
-  $$('[data-mode]').forEach((b) => b.classList.toggle('active', b.dataset.mode === settings.mode));
-  $('#collagePanel').hidden = !collage;
-  $('#infoPanel').hidden = collage;
-  $('#saveOne').hidden = collage;
-  $('#saveZip').hidden = collage;
-  $('#saveAll').hidden = collage;
-  $('#saveCollage').hidden = !collage;
-  $$('[data-for]').forEach((el) => (el.hidden = el.dataset.for !== settings.collage.type));
   const hasPhotos = photos.length > 0;
-  for (const id of ['saveOne', 'saveZip', 'saveAll', 'saveCollage']) $<HTMLButtonElement>('#' + id).disabled = !hasPhotos;
+  for (const id of ['saveOne', 'saveZip', 'saveAll']) $<HTMLButtonElement>('#' + id).disabled = !hasPhotos;
 }
 
 function update(thumbs = true) {
@@ -907,7 +906,9 @@ async function renderMakers() {
 
 // ---------- 書き出し ----------
 
+let busy = false;
 function setBusy(b: boolean) {
+  busy = b;
   $('#busy').hidden = !b;
 }
 function setProgress(t: string) {
@@ -971,19 +972,23 @@ async function downloadFiles(files: File[], zip: boolean) {
 async function deliver(files: File[], zip: boolean) {
   if (canShareFiles(files)) {
     pending = { files, zip };
-    $('#shareDesc').textContent = IS_NATIVE
-      ? `${files.length}枚の画像を作成しました。「保存・共有」からギャラリーやGoogleフォトへ保存できます。`
-      : `${files.length}枚の画像を作成しました。「写真に保存・共有」から写真アプリへ保存できます。`;
-    $('#shareBtn').textContent = IS_NATIVE ? '保存・共有（ギャラリー / Googleフォトなど）' : '写真に保存・共有';
+    const images = files.every((f) => f.type.startsWith('image/'));
+    $('#shareDesc').textContent = !images
+      ? 'ファイルを作成しました。保存先を選んでください。'
+      : IS_NATIVE
+        ? `${files.length}枚の画像を作成しました。「保存・共有」からギャラリーやGoogleフォトへ保存できます。`
+        : `${files.length}枚の画像を作成しました。「写真に保存・共有」から写真アプリへ保存できます。`;
+    $('#shareBtn').textContent = !images ? '共有' : IS_NATIVE ? '保存・共有（ギャラリー / Googleフォトなど）' : '写真に保存・共有';
     $('#shareDl').textContent = IS_NATIVE ? '端末の Documents フォルダに保存' : 'ファイルとしてダウンロード';
     $('#shareSheet').hidden = false;
   } else {
     await downloadFiles(files, zip);
-    toast(`${files.length}枚を書き出しました`);
+    toast(files.every((f) => f.type.startsWith('image/')) ? `${files.length}枚を書き出しました` : 'ファイルを書き出しました');
   }
 }
 
 async function exportPhotos(list: PhotoItem[], zip: boolean) {
+  if (busy) return toast('処理中です。終わってからもう一度お試しください'); // 二重押し防止
   if (!list.length || list[0].id === 'sample') return toast('先に写真を追加してください');
   setBusy(true);
   const used = new Set<string>();
@@ -998,25 +1003,6 @@ async function exportPhotos(list: PhotoItem[], zip: boolean) {
     }
     setProgress('');
     await deliver(files, zip);
-  } catch (e) {
-    console.error(e);
-    toast('書き出しに失敗しました: ' + (e as Error).message);
-  } finally {
-    setProgress('');
-    setBusy(false);
-  }
-}
-
-async function exportCollage() {
-  if (!photos.length) return toast('先に写真を追加してください');
-  setBusy(true);
-  setProgress('まとめた画像を作成中…');
-  try {
-    const c = await renderCollage(photos, settings);
-    const blob = await canvasToBlob(c, settings.export.format, settings.export.quality);
-    const name = `exif-collage_${new Date().toISOString().slice(0, 10)}.${EXT[settings.export.format]}`;
-    setProgress('');
-    await deliver([new File([blob], name, { type: settings.export.format })], false);
   } catch (e) {
     console.error(e);
     toast('書き出しに失敗しました: ' + (e as Error).message);

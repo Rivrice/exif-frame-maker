@@ -23,10 +23,6 @@
       <button id="aboutBtn" class="icon-btn" aria-label="このアプリについて" title="このアプリについて">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg>
       </button>
-      <div class="seg" role="tablist" aria-label="出力モード">
-        <button data-mode="single" class="active">1枚ずつ</button>
-        <button data-mode="collage">まとめて配置</button>
-      </div>
       </div>
     </header>
 
@@ -178,42 +174,13 @@
           <ul id="makers" class="makers"></ul>
         </details>
 
-        <details id="collagePanel" open hidden data-tab="layout">
-          <summary>まとめて配置の設定</summary>
-          <div class="field">
-            <span>配置方法</span>
-            <select id="collageType">
-              <option value="justified">自動行揃え（比率が違ってもぴったり）</option>
-              <option value="grid">グリッド</option>
-            </select>
-          </div>
-          <div class="field" data-for="justified">
-            <span>行の高さ <output id="rowHeightOut"></output></span>
-            <input id="rowHeight" type="range" min="10" max="80" step="1" />
-          </div>
-          <div class="field" data-for="grid">
-            <span>列数 <output id="colsOut"></output></span>
-            <input id="cols" type="range" min="1" max="6" step="1" />
-          </div>
-          <div class="field">
-            <span>間隔 <output id="gapOut"></output></span>
-            <input id="gap" type="range" min="0" max="60" step="1" />
-          </div>
-          <div class="field">
-            <span>出力幅 (px)</span>
-            <input id="collageWidth" type="number" min="800" max="12000" step="100" />
-          </div>
-          <label class="field-inline"><input type="color" id="collageBg" /> 背景色</label>
-        </details>
-
         <details open data-tab="save">
           <summary>書き出し</summary>
           <div class="actions">
             <button id="saveOne" class="primary">この写真を保存</button>
             <button id="saveZip">すべてZIPで保存</button>
             <button id="saveAll">すべて個別に保存</button>
-            <button id="saveCollage" class="primary" hidden>まとめた画像を保存</button>
-          </div>
+              </div>
           <p class="progress" id="progress"></p>
           <div class="field">
             <span>形式</span>

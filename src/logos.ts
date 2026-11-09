@@ -8,13 +8,20 @@ import type { LogoAsset } from './types';
 const DB = 'exif-frame-logos';
 const STORE = 'logos';
 
+let dbPromise: Promise<IDBDatabase> | null = null;
+
+/** 接続は1つを使い回す（毎回開くと接続が溜まっていくため） */
 function openDb(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
+  dbPromise ??= new Promise<IDBDatabase>((resolve, reject) => {
     const req = indexedDB.open(DB, 1);
     req.onupgradeneeded = () => req.result.createObjectStore(STORE);
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
+  }).catch((e) => {
+    dbPromise = null;
+    throw e;
   });
+  return dbPromise;
 }
 
 async function tx<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T>): Promise<T> {
@@ -34,7 +41,12 @@ async function blobToAsset(blob: Blob): Promise<LogoAsset> {
   const url = URL.createObjectURL(blob);
   const img = new Image();
   img.src = url;
-  await img.decode();
+  try {
+    await img.decode();
+  } catch (e) {
+    URL.revokeObjectURL(url);
+    throw e;
+  }
   let w = img.naturalWidth, h = img.naturalHeight;
   if (!w || !h) {
     // width/height 指定の無いSVG

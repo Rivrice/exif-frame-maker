@@ -167,8 +167,8 @@ export function findEmbeddedJpegs(buf: Uint8Array): { start: number; w: number; 
 
 async function decodeRaw(file: File): Promise<{ src: ImageSource; jpeg?: Blob } | null> {
   const buf = new Uint8Array(await file.arrayBuffer());
-  const cands = findEmbeddedJpegs(buf).filter((c) => c.w * c.h >= 160 * 120);
-  for (const c of cands.slice(0, 4)) {
+  const cands = findEmbeddedJpegs(buf).filter((c) => c.w * c.h >= 160 * 120 && c.w <= 20000 && c.h <= 20000);
+  for (const c of cands.slice(0, 8)) {
     const blob = new Blob([buf.subarray(c.start)], { type: 'image/jpeg' });
     try {
       const src = await createImageBitmap(blob, { imageOrientation: 'none' });
@@ -213,7 +213,13 @@ async function decodeHeic(file: File): Promise<ImageSource> {
     /* ブラウザ非対応 → 次へ */
   }
   const { heicToJpegNative } = await import('./native');
-  const jpeg = await heicToJpegNative(file);
+  let jpeg: Blob | null = null;
+  try {
+    jpeg = await heicToJpegNative(file);
+  } catch (e) {
+    console.error(e);
+    throw new Error('この端末ではHEICを読み込めませんでした。JPEGに変換してから読み込んでください');
+  }
   if (jpeg) return bitmapFromBlob(jpeg, 'from-image');
   throw new Error(
     'このブラウザはHEICに対応していません。iPhone/MacのSafari、Androidアプリ版を使うか、JPEGに変換してから読み込んでください',
@@ -227,7 +233,7 @@ async function webpExif(file: File): Promise<ArrayBuffer | null> {
   if (buf.length < 12 || tag(0) !== 'RIFF' || tag(8) !== 'WEBP') return null;
   let p = 12;
   while (p + 8 <= buf.length) {
-    const size = buf[p + 4] | (buf[p + 5] << 8) | (buf[p + 6] << 16) | (buf[p + 7] << 24);
+    const size = (buf[p + 4] | (buf[p + 5] << 8) | (buf[p + 6] << 16) | (buf[p + 7] << 24)) >>> 0;
     if (tag(p) === 'EXIF') {
       let start = p + 8;
       // "Exif\0\0" が先頭に付いている場合がある
@@ -262,12 +268,15 @@ export async function decodeFile(file: File): Promise<Decoded> {
       if (!exif.make && j.info.make) exif = { ...j.info };
       if (o <= 1 && j.orientation > 1) o = j.orientation;
     }
-    src = applyOrientation(src, o);
+    const rotated = applyOrientation(src, o);
+    if (rotated !== src && src instanceof ImageBitmap) src.close();
+    src = rotated;
   } else if (e === 'heic' || e === 'heif' || /hei[cf]/.test(file.type)) {
     src = await decodeHeic(file);
   } else if (e === 'tif' || e === 'tiff' || file.type === 'image/tiff') {
     try {
       src = await createImageBitmap(file, { imageOrientation: 'from-image' });
+      if (!src.width || !src.height) throw new Error('empty');
     } catch {
       src = applyOrientation(await decodeTiff(file), orientation);
     }

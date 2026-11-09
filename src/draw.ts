@@ -176,6 +176,10 @@ export function canvas(w: number, h: number) {
 /** 直近に描いた写真の位置（クレジットを写真の四隅に置くために使用。描画は同期的なので安全） */
 export let lastPhotoRect = { x: 0, y: 0, w: 0, h: 0 };
 
+export function resetPhotoRect() {
+  lastPhotoRect = { x: 0, y: 0, w: 0, h: 0 };
+}
+
 export function drawPhoto(ctx: CanvasRenderingContext2D, src: ImageSource, x: number, y: number, w: number, h: number) {
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(src, x, y, w, h);

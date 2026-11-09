@@ -62,15 +62,6 @@ export interface Settings {
   };
   /** 四隅レイアウトで各隅に表示する項目 */
   corners: Record<Corner, CornerItem>;
-  mode: 'single' | 'collage';
-  collage: {
-    type: 'justified' | 'grid';
-    width: number;
-    rowHeight: number; // 幅に対する比率（%）
-    cols: number;
-    gap: number; // 幅に対する比率（‰）
-    bg: string;
-  };
   export: {
     format: 'image/jpeg' | 'image/png' | 'image/webp';
     quality: number;
