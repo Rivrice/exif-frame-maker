@@ -38,6 +38,9 @@ jobs:
         run: |
           # Secrets に鍵があればそれを使う（上書き更新が可能）。無ければこの実行用に一時的な鍵を作る。
           if [ -n "$KEYSTORE_B64" ]; then
+            if [ -z "$KEYSTORE_PASSWORD" ]; then
+              echo "::error::ANDROID_KEYSTORE_BASE64 はありますが ANDROID_KEYSTORE_PASSWORD が未登録（または名前違い）です"; exit 1
+            fi
             echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
             echo "ANDROID_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
             echo "ANDROID_KEY_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
