@@ -49,7 +49,6 @@ const DEFAULTS: Settings = {
   borderScale: 1,
   aspect: 'auto',
   show: { logo: true, model: true, lens: true, focal: true, aperture: true, shutter: true, iso: true, date: true, artist: true },
-  logoTint: false,
   author: '',
   mode: 'single',
   collage: { type: 'justified', width: 4000, rowHeight: 30, cols: 3, gap: 12, bg: '#eeeeee' },
@@ -330,7 +329,7 @@ function renderList() {
 // ---------- UI：コントロール ----------
 
 const TOGGLES: [keyof Settings['show'], string][] = [
-  ['logo', 'ロゴ'],
+  ['logo', 'メーカー名'],
   ['model', '機種'],
   ['lens', 'レンズ'],
   ['focal', '焦点距離'],
@@ -449,10 +448,6 @@ function buildStaticControls() {
     settings.author = (e.target as HTMLInputElement).value;
     update();
   });
-  $<HTMLInputElement>('#logoTint').addEventListener('change', (e) => {
-    settings.logoTint = (e.target as HTMLInputElement).checked;
-    update();
-  });
 
   $$('[data-mode]').forEach((b) =>
     b.addEventListener('click', () => {
@@ -512,6 +507,13 @@ function buildStaticControls() {
     }),
   );
 
+  // このアプリについて
+  $('#aboutBtn').addEventListener('click', () => ($('#aboutSheet').hidden = false));
+  $('#aboutClose').addEventListener('click', () => ($('#aboutSheet').hidden = true));
+  $('#aboutSheet').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) $('#aboutSheet').hidden = true;
+  });
+
   // 書き出し完了シート
   $('#shareBtn').addEventListener('click', async () => {
     if (!pending) return;
@@ -570,7 +572,6 @@ function renderControls() {
   set('collageWidth', settings.collage.width);
   set('collageBg', settings.collage.bg);
   set('author', settings.author);
-  $<HTMLInputElement>('#logoTint').checked = settings.logoTint;
 
   const collage = settings.mode === 'collage';
   $$('[data-mode]').forEach((b) => b.classList.toggle('active', b.dataset.mode === settings.mode));
@@ -654,13 +655,22 @@ async function renderMakers() {
     const li = document.createElement('li');
     li.innerHTML = `
       <span class="mk-name"></span>
-      <span class="mk-state">${origin === 'user' ? '登録画像' : origin === 'bundled' ? '同梱画像' : '文字'}</span>
+      <span class="mk-state">${origin === 'user' ? '登録画像' : origin === 'bundled' ? '配置画像' : '文字で表示'}</span>
       <label class="btn-sm">画像を登録<input type="file" accept="image/svg+xml,image/png,image/webp" hidden /></label>
       ${origin === 'user' ? '<button class="btn-sm ghost" data-rm>解除</button>' : ''}`;
     li.querySelector('.mk-name')!.textContent = m.display;
     li.querySelector('input')!.addEventListener('change', async (e) => {
-      const f = (e.target as HTMLInputElement).files?.[0];
+      const input = e.target as HTMLInputElement;
+      const f = input.files?.[0];
+      input.value = '';
       if (!f) return;
+      const ok = confirm(
+        `${m.display} のロゴ画像を登録します。\n\n` +
+          '・ロゴは各社の商標です。利用条件をご自身で確認してください。\n' +
+          '・ロゴ入りの画像は個人的な利用にとどめてください（多くのメーカーは改変・商用利用を認めていません）。\n\n' +
+          '登録しますか？',
+      );
+      if (!ok) return;
       try {
         await setUserLogo(key, f);
         toast(`${m.display} のロゴを登録しました`);

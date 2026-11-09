@@ -289,3 +289,19 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
   .tabbar svg { width: 18px; height: 18px; }
 }
 
+
+.top-actions { display: flex; align-items: center; gap: 8px; }
+.icon-btn {
+  width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: var(--bg);
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer; color: var(--muted); padding: 0;
+}
+.icon-btn svg { width: 20px; height: 20px; }
+.hint.warn { color: #b0552a; }
+.sheet-card.about { max-height: 85dvh; }
+.about-body { overflow-y: auto; font-size: 13px; line-height: 1.7; margin: 4px 0 6px; }
+.about-body h3 { font-size: 13px; margin: 14px 0 2px; }
+.about-body p { margin: 0; color: var(--text); }
+.about-body p.muted { color: var(--muted); margin-top: 12px; font-size: 12px; }
+.about-body a { color: var(--accent); }
+.disclaimer { font-size: 10.5px; color: var(--muted); line-height: 1.5; margin: 16px 2px 0; }
+@media (max-width: 900px) { .disclaimer { display: none; } }

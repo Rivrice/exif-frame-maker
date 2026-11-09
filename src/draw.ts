@@ -39,6 +39,7 @@ export interface RC {
   info: DisplayInfo;
   s: Settings;
   logo: LogoAsset | null;
+  font: string; // レイアウト既定のフォント
 }
 
 export interface TextSpec {
@@ -126,12 +127,12 @@ export function maxLineWidth(ctx: CanvasRenderingContext2D, lines: Line[]) {
   return Math.max(0, ...lines.map((l) => textWidth(ctx, l.text, l.spec)));
 }
 
-// ---------- ロゴ ----------
+// ---------- メーカー名 / ロゴ ----------
+// 標準では、メーカー名を各社ロゴに似せず、レイアウト共通の書体で普通の文字として表示する。
+// 利用者が自分で登録したロゴ画像がある場合のみ画像を使う（改変せずそのまま描画）。
 
-function wordmarkSpec(rc: RC, h: number, color: string): TextSpec | null {
-  const m = rc.info.maker;
-  if (!m) return null;
-  return { size: h / 0.72, weight: m.weight, family: m.font, italic: m.italic, spacing: m.spacing, color };
+function makerSpec(rc: RC, h: number, color: string): TextSpec {
+  return { size: (h / 0.72) * 0.82, weight: 700, family: rc.s.font || rc.font, color };
 }
 
 export function hasLogo(rc: RC) {
@@ -141,44 +142,21 @@ export function hasLogo(rc: RC) {
 export function logoWidth(ctx: CanvasRenderingContext2D, rc: RC, h: number): number {
   if (!hasLogo(rc)) return 0;
   if (rc.logo) return (rc.logo.width / rc.logo.height) * h;
-  const spec = wordmarkSpec(rc, h, '#000')!;
-  return textWidth(ctx, rc.info.maker!.display, spec);
-}
-
-const tintCache = new WeakMap<object, Map<string, HTMLCanvasElement>>();
-
-function tinted(logo: LogoAsset, color: string): HTMLCanvasElement {
-  let m = tintCache.get(logo);
-  if (!m) tintCache.set(logo, (m = new Map()));
-  const hit = m.get(color);
-  if (hit) return hit;
-  const c = document.createElement('canvas');
-  c.width = logo.width;
-  c.height = logo.height;
-  const x = c.getContext('2d')!;
-  x.drawImage(logo.image, 0, 0);
-  x.globalCompositeOperation = 'source-in';
-  x.fillStyle = color;
-  x.fillRect(0, 0, c.width, c.height);
-  m.set(color, c);
-  return c;
+  return textWidth(ctx, rc.info.maker!.display, makerSpec(rc, h, '#000'));
 }
 
 /**
- * ロゴ（またはワードマーク）を描画。cy は縦中心。戻り値は描画幅。
- * h は大文字の高さ相当（画像ロゴでは画像の高さ）。
+ * メーカー名（または登録ロゴ画像）を描画。cy は縦中心。戻り値は描画幅。
  */
 export function drawLogo(ctx: CanvasRenderingContext2D, rc: RC, x: number, cy: number, h: number, align: CanvasTextAlign, color: string): number {
   if (!hasLogo(rc)) return 0;
   const w = logoWidth(ctx, rc, h);
   const left = align === 'center' ? x - w / 2 : align === 'right' ? x - w : x;
   if (rc.logo) {
-    const img = rc.s.logoTint ? tinted(rc.logo, color) : rc.logo.image;
     ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(img, left, cy - h / 2, w, h);
+    ctx.drawImage(rc.logo.image, left, cy - h / 2, w, h);
   } else {
-    const spec = wordmarkSpec(rc, h, color)!;
-    drawText(ctx, rc.info.maker!.display, left, cy + h * 0.02, { ...spec, align: 'left' });
+    drawText(ctx, rc.info.maker!.display, left, cy + h * 0.02, { ...makerSpec(rc, h, color), align: 'left' });
   }
   return w;
 }

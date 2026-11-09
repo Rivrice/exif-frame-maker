@@ -19,9 +19,14 @@
         <span class="brand-mark"></span>
         <h1>Exif Frame Maker</h1>
       </div>
+      <div class="top-actions">
+      <button id="aboutBtn" class="icon-btn" aria-label="このアプリについて" title="このアプリについて">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg>
+      </button>
       <div class="seg" role="tablist" aria-label="出力モード">
         <button data-mode="single" class="active">1枚ずつ</button>
         <button data-mode="collage">まとめて配置</button>
+      </div>
       </div>
     </header>
 
@@ -39,6 +44,9 @@
         </div>
         <ul id="list" class="photo-list"></ul>
         <label for="file" class="add-tile" aria-label="写真を追加"><span>＋</span>追加</label>
+        <p class="disclaimer">
+          非公式アプリです。各メーカーとは関係ありません。メーカー名・機種名は各社の商標です。写真は端末の外に送信されません。
+        </p>
       </aside>
 
       <section class="stage">
@@ -117,10 +125,13 @@
         </details>
 
         <details open data-tab="info">
-          <summary>メーカーロゴ</summary>
-          <label class="check"><input type="checkbox" id="logoTint" /> ロゴ画像を文字色で塗る</label>
+          <summary>ロゴ画像（任意）</summary>
           <p class="hint">
-            標準では各メーカー名を文字で表示します。公式ロゴ画像（SVG/PNG）をお持ちの場合はここで登録するとブラウザに保存され、以後自動で使われます。
+            メーカー名は普通の文字で表示されます。ロゴ画像を使いたい場合は、利用条件を確認したうえでご自身で用意した画像を登録してください。
+            画像はこの端末内にだけ保存され、加工せずそのまま表示されます。
+          </p>
+          <p class="hint warn">
+            各社のロゴは各社の商標です。多くのメーカーは改変や商用利用を認めていないため、ロゴ入りの画像は個人的な利用にとどめてください。
           </p>
           <ul id="makers" class="makers"></ul>
         </details>
@@ -204,6 +215,43 @@
         <button id="shareBtn" class="primary">写真に保存・共有</button>
         <button id="shareDl">ファイルとしてダウンロード</button>
         <button id="shareClose" class="link">閉じる</button>
+      </div>
+    </div>
+
+    <div class="sheet-backdrop" id="aboutSheet" hidden>
+      <div class="sheet-card about" role="dialog" aria-modal="true" aria-labelledby="aboutTitle">
+        <h2 id="aboutTitle">Exif Frame Maker について</h2>
+        <div class="about-body">
+          <h3>非公式アプリです</h3>
+          <p>
+            このアプリは個人が開発した非公式のツールで、各カメラメーカー・スマートフォンメーカーとは一切関係がなく、承認・提携を受けたものではありません。
+            表示されるメーカー名・機種名は、写真のExif情報に記録された撮影機材を示すためのもので、各社の商標または登録商標です。
+          </p>
+          <h3>ロゴ画像について</h3>
+          <p>
+            アプリには各社のロゴを同梱していません。利用者が登録したロゴ画像の利用については、利用者ご自身で各社の利用条件をご確認ください。
+          </p>
+          <h3>プライバシー</h3>
+          <p>
+            写真の読み込み・加工・書き出しはすべてお使いの端末内で行われ、写真や撮影情報が外部に送信されることはありません。
+            書き出した画像には、位置情報（GPS）を含むExif情報は残りません。アクセス解析や広告も使用していません。
+          </p>
+          <h3>HEIC（iPhoneの写真）</h3>
+          <p>
+            HEIC画像は端末・ブラウザに標準搭載された機能で読み込みます（iPhone/MacのSafari、Androidアプリ版）。
+            非対応のブラウザでは、JPEGに変換してから読み込んでください。
+          </p>
+          <h3>ライセンス</h3>
+          <p>
+            本アプリは MIT ライセンスで公開しています。使用しているオープンソースソフトウェアとフォントのライセンスは
+            <a href="./THIRD_PARTY_LICENSES.txt" target="_blank" rel="noopener">サードパーティライセンス一覧</a>をご覧ください。
+          </p>
+          <p class="muted">
+            ソースコード: <a href="https://github.com/Rivrice/exif-frame-maker" target="_blank" rel="noopener">github.com/Rivrice/exif-frame-maker</a><br />
+            本ソフトウェアは無保証で提供されます。
+          </p>
+        </div>
+        <button id="aboutClose" class="primary">閉じる</button>
       </div>
     </div>
 

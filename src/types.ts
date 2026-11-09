@@ -50,7 +50,6 @@ export interface Settings {
     date: boolean;
     artist: boolean;
   };
-  logoTint: boolean;
   author: string;
   mode: 'single' | 'collage';
   collage: {

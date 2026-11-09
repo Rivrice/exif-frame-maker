@@ -235,7 +235,8 @@ export const LAYOUTS: Layout[] = [
       // エッジ文字
       const edge = { size: 1.5 * t, weight: 700, family: F, color: C.accent, spacing: 0.1 };
       const iso = rc.info.params.find((p) => p.startsWith('ISO')) ?? '';
-      const edgeText = join([rc.info.maker?.display.toUpperCase() ?? '', iso.replace('ISO', '')], ' ');
+      // 実在のフィルム製品の刻印に似せないよう、メーカー名は入れずISO感度とコマ番号風の表記のみ
+      const edgeText = join([iso ? `ISO ${iso.replace('ISO', '')}` : '', '▸ 1A'], '   ');
       if (edgeText) {
         const ew = textWidth(ctx, edgeText, edge) + 2 * u;
         ctx.fillStyle = C.bg;
@@ -391,7 +392,7 @@ export const LAYOUTS: Layout[] = [
     id: 'center',
     name: 'センターロゴ',
     desc: '下部中央に大きくロゴを配置',
-    colors: { bg: '#ffffff', text: '#000000', sub: '#7a7a7a', accent: '#e60012' },
+    colors: { bg: '#ffffff', text: '#000000', sub: '#7a7a7a', accent: '#c8c8c8' },
     font: 'Montserrat',
     render(src, iw, ih, rc) {
       const { u, t } = units(base(iw, ih), rc);

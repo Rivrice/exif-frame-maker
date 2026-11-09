@@ -37,7 +37,7 @@ async function context(p: PhotoItem, s: Settings): Promise<RC> {
   const info = buildInfo(p, s);
   await ensureGlyphs([info.model, info.lens, info.date, info.artist, ...info.params, info.maker?.display ?? '']);
   const logo = s.show.logo && info.maker ? await getLogo(info.maker.key) : null;
-  return { info, s, logo };
+  return { info, s, logo, font: getLayout(s.layoutId).font };
 }
 
 /** k = 写真の描画倍率 */

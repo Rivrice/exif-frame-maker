@@ -1,8 +1,24 @@
 // Androidアプリ（Capacitor）として動いているときの保存・共有処理。
 // ブラウザ版ではこのモジュールの関数は使われません。
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 
 export const IS_NATIVE = Capacitor.isNativePlatform();
+
+interface HeicConverterPlugin {
+  toJpeg(opts: { data: string; maxPixels: number }): Promise<{ data: string; width: number; height: number }>;
+}
+// android/app/src/main/java/.../HeicConverterPlugin.java（Android標準のデコーダーを使用）
+const HeicConverter = registerPlugin<HeicConverterPlugin>('HeicConverter');
+
+/** Androidアプリ版のみ: OS標準デコーダーでHEICをJPEGに変換。ブラウザでは null */
+export async function heicToJpegNative(file: Blob): Promise<Blob | null> {
+  if (!IS_NATIVE || Capacitor.getPlatform() !== 'android') return null;
+  const res = await HeicConverter.toJpeg({ data: await toBase64(file), maxPixels: 16_000_000 });
+  const bin = atob(res.data);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: 'image/jpeg' });
+}
 
 function toBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {

@@ -199,16 +199,25 @@ async function decodeTiff(file: File): Promise<ImageSource> {
   return c;
 }
 
+/**
+ * HEIC/HEIF の画像本体は HEVC（特許のある動画方式）で圧縮されているため、
+ * アプリ内にデコーダーを同梱せず、OS・ブラウザに標準搭載されたデコーダーだけを使う。
+ *  - Safari（iPhone / Mac）: ブラウザがそのまま表示できる
+ *  - Androidアプリ版: Android標準の ImageDecoder で JPEG に変換（HeicConverter プラグイン）
+ *  - それ以外のブラウザ: 対応していない旨を表示
+ */
 async function decodeHeic(file: File): Promise<ImageSource> {
-  // Safari などネイティブ対応ブラウザではそのまま
   try {
-    return await createImageBitmap(file);
+    return await bitmapFromBlob(file, 'from-image');
   } catch {
-    const heic2any = (await import('heic2any')).default;
-    const res = await heic2any({ blob: file, toType: 'image/png' });
-    const blob = Array.isArray(res) ? res[0] : res;
-    return bitmapFromBlob(blob);
+    /* ブラウザ非対応 → 次へ */
   }
+  const { heicToJpegNative } = await import('./native');
+  const jpeg = await heicToJpegNative(file);
+  if (jpeg) return bitmapFromBlob(jpeg, 'from-image');
+  throw new Error(
+    'このブラウザはHEICに対応していません。iPhone/MacのSafari、Androidアプリ版を使うか、JPEGに変換してから読み込んでください',
+  );
 }
 
 /** WebP の RIFF コンテナから EXIF チャンク（TIFF形式）を取り出す */
