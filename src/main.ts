@@ -368,12 +368,11 @@ function renderMyPresets() {
     });
     box.appendChild(b);
   }
-  // 一覧の最後に「＋」（今の設定を保存）
-  const add = document.createElement('button');
+  // 一覧の最後に「＋」の枠（プリセットファイルの読込）
+  const add = document.createElement('div');
   add.className = 'preset mp-add';
-  add.title = '今の設定をマイプリセットに保存';
-  add.innerHTML = '<div class="pv"><b>＋</b></div><span>今の設定を保存</span>';
-  add.addEventListener('click', savePresetFromCurrent);
+  add.innerHTML = '<button class="mp-add-plus" aria-label="プリセットを読込"><b>＋</b></button><button class="mp-add-label">読込</button>';
+  add.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => $<HTMLInputElement>('#mpImport').click()));
   box.appendChild(add);
 }
 
@@ -457,6 +456,7 @@ function bindMyPresets() {
   $('#mpSheet').addEventListener('click', (e) => {
     if (e.target === e.currentTarget) closeMpSheet();
   });
+  $('#mpSave').addEventListener('click', savePresetFromCurrent);
   $('#mpExport').addEventListener('click', async () => {
     if (!myPresets.length) return toast('保存したプリセットがありません');
     const file = new File([exportJson(myPresets)], `exif-frame-presets_${new Date().toISOString().slice(0, 10)}.json`, {

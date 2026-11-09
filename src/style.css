@@ -364,11 +364,11 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 
 /* マイプリセット：＋の枠・読込・書き出し */
 .preset.mp-add { border-style: dashed; border-color: var(--accent); color: var(--accent); }
-.preset.mp-add .pv { background: none; }
-.preset.mp-add .pv b { font-size: 34px; font-weight: 400; line-height: 1; }
-.preset.mp-add span { color: var(--accent); font-weight: 700; }
-.my-actions { justify-content: flex-end; }
-.mp-load { cursor: pointer; font-weight: 700; }
+.preset.mp-add { cursor: default; }
+.mp-add-plus { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border: 0; background: none; color: var(--accent); cursor: pointer; padding: 0; }
+.mp-add-plus b { font-size: 34px; font-weight: 400; line-height: 1; }
+.mp-add-label { border: 0; background: none; color: var(--accent); font-weight: 700; font-size: 12px; cursor: pointer; padding: 2px 0; text-decoration: underline; text-underline-offset: 2px; }
+.my-actions { justify-content: flex-start; }
 .mp-export { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
 .mp-export button { width: 100%; padding: 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); cursor: pointer; font-weight: 600; color: inherit; }
 @media (max-width: 900px) { .mp-load { font-size: 15px; padding: 6px 4px; } .mp-export button { min-height: 46px; font-size: 15px; } }
