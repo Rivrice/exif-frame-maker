@@ -61,7 +61,7 @@ export interface Settings {
     color: 'light' | 'dark' | 'text';
   };
   /** 四隅レイアウトで各隅に表示する項目 */
-  corners: Record<Corner, CornerItem[]>;
+  corners: Record<Corner, CornerItem>;
   mode: 'single' | 'collage';
   collage: {
     type: 'justified' | 'grid';

@@ -30,7 +30,7 @@ import './style.css';
 import { zipSync } from 'fflate';
 import { ACCEPT, decodeFile, makeThumb } from './decode';
 import { buildInfo } from './draw';
-import { CORNER_KEYS, CORNER_PATTERNS, CORNER_SLOTS, LAYOUTS, getLayout } from './layouts';
+import { CORNER_KEYS, LAYOUTS, getLayout } from './layouts';
 import { getLogo, logoOrigin, removeUserLogo, setUserLogo } from './logos';
 import { MAKERS } from './makers';
 import { IS_IOS, canvasToBlob, preloadFonts, renderCollage, renderOutput, renderPreview } from './render';
@@ -51,7 +51,7 @@ const DEFAULTS: Settings = {
   show: { logo: true, model: true, lens: true, focal: true, aperture: true, shutter: true, iso: true, date: true, artist: true },
   author: '',
   credit: { scale: 1, position: 'auto', color: 'light' },
-  corners: { tl: ['makerModel'], tr: ['date'], bl: ['params'], br: ['credit'] },
+  corners: { tl: 'makerModel', tr: 'date', bl: 'params', br: 'credit' },
   mode: 'single',
   collage: { type: 'justified', width: 4000, rowHeight: 30, cols: 3, gap: 12, bg: '#eeeeee' },
   export: { format: 'image/jpeg', quality: 0.92, maxEdge: 0 },
@@ -68,7 +68,7 @@ function loadSettings(): Settings {
         show: { ...DEFAULTS.show, ...raw.show },
         collage: { ...DEFAULTS.collage, ...raw.collage },
         credit: { ...DEFAULTS.credit, ...raw.credit },
-        corners: normalizeCorners({ ...DEFAULTS.corners, ...raw.corners }),
+        corners: { ...DEFAULTS.corners, ...raw.corners },
         export: { ...DEFAULTS.export, ...raw.export },
       };
     }
@@ -76,16 +76,6 @@ function loadSettings(): Settings {
     /* noop */
   }
   return structuredClone(DEFAULTS);
-}
-
-/** 旧形式（各隅1項目の文字列）からの移行 */
-function normalizeCorners(c: Record<string, unknown>): Settings['corners'] {
-  const out = {} as Settings['corners'];
-  for (const k of ['tl', 'tr', 'bl', 'br'] as Corner[]) {
-    const v = c[k];
-    out[k] = (Array.isArray(v) ? v : v ? [v] : []).filter(Boolean).slice(0, 2) as CornerItem[];
-  }
-  return out;
 }
 
 let settings = loadSettings();
@@ -342,28 +332,6 @@ function renderList() {
 
 // ---------- UI：コントロール ----------
 
-const CORNER_LABEL: Record<Corner, string> = { tl: '左上', tr: '右上', bl: '左下', br: '右下' };
-const ITEMS: [CornerItem, string][] = [
-  ['', 'なし'],
-  ['makerModel', 'メーカー名＋機種'],
-  ['maker', 'メーカー名'],
-  ['model', '機種'],
-  ['lens', 'レンズ'],
-  ['params', '撮影設定'],
-  ['date', '撮影日時'],
-  ['credit', 'クレジット'],
-];
-const SHORT: Record<CornerItem, string> = {
-  '': '',
-  makerModel: 'メーカー+機種',
-  maker: 'メーカー',
-  model: '機種',
-  lens: 'レンズ',
-  params: '設定',
-  date: '撮影日',
-  credit: 'クレジット',
-};
-
 const TOGGLES: [keyof Settings['show'], string][] = [
   ['logo', 'メーカー名'],
   ['model', '機種'],
@@ -490,38 +458,26 @@ function buildStaticControls() {
   );
   bindSelect('creditColor', (v) => (settings.credit.color = v as Settings['credit']['color']));
 
-  // 四隅の項目：配置パターン
-  const pat = $('#cornerPatterns');
-  for (const p of CORNER_PATTERNS) {
-    const b = document.createElement('button');
-    b.className = 'pattern';
-    b.dataset.pattern = p.id;
-    const cell = (k: Corner) =>
-      `<span class="pc pc-${k}">${p.corners[k].map((i) => SHORT[i]).join('<br>') || '<i>—</i>'}</span>`;
-    b.innerHTML = `<span class="pt">パターン${p.id}</span><span class="pbox">${CORNER_KEYS.map(cell).join('')}<span class="pphoto">写真</span></span>`;
-    b.addEventListener('click', () => {
-      settings.corners = structuredClone(p.corners);
+  // 四隅の項目
+  const grid = $('#cornerGrid');
+  const CORNER_LABEL: Record<Corner, string> = { tl: '左上', tr: '右上', bl: '左下', br: '右下' };
+  const ITEMS: [CornerItem, string][] = [
+    ['', 'なし'],
+    ['makerModel', 'メーカー名＋機種'],
+    ['maker', 'メーカー名'],
+    ['model', '機種'],
+    ['lens', 'レンズ'],
+    ['params', '撮影設定'],
+    ['date', '撮影日時'],
+    ['credit', 'クレジット'],
+  ];
+  for (const k of CORNER_KEYS) {
+    const l = document.createElement('label');
+    l.innerHTML = `<span>${CORNER_LABEL[k]}</span><select data-corner="${k}">${ITEMS.map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select>`;
+    l.querySelector('select')!.addEventListener('change', (e) => {
+      settings.corners[k] = (e.target as HTMLSelectElement).value as CornerItem;
       update();
     });
-    pat.appendChild(b);
-  }
-
-  // 四隅の項目：隅ごとの個別設定（1隅に2項目まで）
-  const grid = $('#cornerGrid');
-  for (const k of CORNER_KEYS) {
-    const l = document.createElement('div');
-    l.className = 'corner-cell';
-    const opts = ITEMS.map(([v, n]) => `<option value="${v}">${n}</option>`).join('');
-    l.innerHTML =
-      `<span>${CORNER_LABEL[k]}</span>` +
-      Array.from({ length: CORNER_SLOTS }, (_, i) => `<select data-corner="${k}" data-slot="${i}" aria-label="${CORNER_LABEL[k]} ${i + 1}行目">${opts}</select>`).join('');
-    l.querySelectorAll('select').forEach((sel) =>
-      sel.addEventListener('change', () => {
-        const vals = [...l.querySelectorAll('select')].map((x) => x.value as CornerItem).filter(Boolean);
-        settings.corners[k] = vals;
-        update();
-      }),
-    );
     grid.appendChild(l);
   }
 
@@ -668,13 +624,7 @@ function renderControls() {
       ? ''
       : '「表示する項目」で撮影者がオフになっています。';
   $('#cornerPanel').hidden = !cornerLayout;
-  $$<HTMLSelectElement>('[data-corner]').forEach(
-    (sel) => (sel.value = settings.corners[sel.dataset.corner as Corner][Number(sel.dataset.slot)] ?? ''),
-  );
-  const curr = JSON.stringify(settings.corners);
-  $$('[data-pattern]').forEach((b) =>
-    b.classList.toggle('active', JSON.stringify(CORNER_PATTERNS.find((p) => p.id === b.dataset.pattern)!.corners) === curr),
-  );
+  $$<HTMLSelectElement>('[data-corner]').forEach((sel) => (sel.value = settings.corners[sel.dataset.corner as Corner]));
 
   const collage = settings.mode === 'collage';
   $$('[data-mode]').forEach((b) => b.classList.toggle('active', b.dataset.mode === settings.mode));
