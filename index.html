@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="写真のExif情報から撮影データ入りのフレームを作成するWebアプリ" />
+    <title>Exif Frame Maker</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='6' y='6' width='52' height='52' rx='6' fill='%23fff' stroke='%23222' stroke-width='4'/%3E%3Crect x='12' y='12' width='40' height='30' fill='%23f0a43a'/%3E%3Crect x='14' y='47' width='18' height='4' fill='%23222'/%3E%3C/svg%3E" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark"></span>
+        <h1>Exif Frame Maker</h1>
+      </div>
+      <div class="seg" role="tablist" aria-label="出力モード">
+        <button data-mode="single" class="active">1枚ずつ</button>
+        <button data-mode="collage">まとめて配置</button>
+      </div>
+    </header>
+
+    <main class="app">
+      <aside class="panel left">
+        <label class="drop" id="drop">
+          <input id="file" type="file" multiple hidden />
+          <strong>写真を追加</strong>
+          <span>クリック or ドラッグ＆ドロップ</span>
+          <small>JPEG / PNG / HEIC / WebP / AVIF / TIFF / RAW（CR3, NEF, ARW, RAF, DNG など）</small>
+        </label>
+        <div class="list-head">
+          <span id="count">0枚</span>
+          <button id="clear" class="link">すべて削除</button>
+        </div>
+        <ul id="list" class="photo-list"></ul>
+      </aside>
+
+      <section class="stage">
+        <div class="stage-inner" id="stage">
+          <canvas id="preview"></canvas>
+          <div class="busy" id="busy" hidden>処理中…</div>
+        </div>
+        <p class="stage-meta" id="meta"></p>
+      </section>
+
+      <aside class="panel right">
+        <details open>
+          <summary>レイアウト</summary>
+          <div id="presets" class="presets"></div>
+        </details>
+
+        <details open>
+          <summary>カラー</summary>
+          <div class="colors">
+            <label><input type="color" data-color="bg" /> 背景・フレーム</label>
+            <label><input type="color" data-color="text" /> メイン文字</label>
+            <label><input type="color" data-color="sub" /> サブ文字</label>
+            <label><input type="color" data-color="accent" /> アクセント</label>
+          </div>
+          <div class="swatches" id="swatches"></div>
+          <button id="resetColors" class="link">このレイアウトの初期色に戻す</button>
+        </details>
+
+        <details open>
+          <summary>テキスト・サイズ</summary>
+          <div class="field">
+            <span>フォント</span>
+            <select id="font">
+              <option value="">レイアウト既定</option>
+              <option>Inter</option>
+              <option>Montserrat</option>
+              <option>Playfair Display</option>
+              <option>Cormorant Garamond</option>
+              <option>Oswald</option>
+              <option>JetBrains Mono</option>
+              <option>Noto Sans JP</option>
+            </select>
+          </div>
+          <div class="field">
+            <span>文字サイズ <output id="textScaleOut"></output></span>
+            <input id="textScale" type="range" min="0.5" max="1.8" step="0.05" />
+          </div>
+          <div class="field">
+            <span>フチの太さ <output id="borderScaleOut"></output></span>
+            <input id="borderScale" type="range" min="0.3" max="2.5" step="0.05" />
+          </div>
+          <div class="field">
+            <span>出力比率</span>
+            <select id="aspect">
+              <option value="auto">自動（写真に合わせる）</option>
+              <option value="1:1">1:1 正方形</option>
+              <option value="4:5">4:5 縦</option>
+              <option value="3:4">3:4 縦</option>
+              <option value="2:3">2:3 縦</option>
+              <option value="9:16">9:16 ストーリー</option>
+              <option value="3:2">3:2 横</option>
+              <option value="16:9">16:9 横</option>
+            </select>
+          </div>
+          <div class="toggles" id="toggles"></div>
+          <div class="field">
+            <span>撮影者名（任意）</span>
+            <input id="author" type="text" placeholder="空欄ならExifのArtistを使用" />
+          </div>
+        </details>
+
+        <details open>
+          <summary>メーカーロゴ</summary>
+          <label class="check"><input type="checkbox" id="logoTint" /> ロゴ画像を文字色で塗る</label>
+          <p class="hint">
+            標準では各メーカー名を文字で表示します。公式ロゴ画像（SVG/PNG）をお持ちの場合はここで登録するとブラウザに保存され、以後自動で使われます。
+          </p>
+          <ul id="makers" class="makers"></ul>
+        </details>
+
+        <details id="infoPanel" open>
+          <summary>この写真の情報（編集可）</summary>
+          <div id="exifForm" class="exif-form"></div>
+          <button id="resetExif" class="link">Exifの値に戻す</button>
+        </details>
+
+        <details id="collagePanel" open hidden>
+          <summary>まとめて配置の設定</summary>
+          <div class="field">
+            <span>配置方法</span>
+            <select id="collageType">
+              <option value="justified">自動行揃え（比率が違ってもぴったり）</option>
+              <option value="grid">グリッド</option>
+            </select>
+          </div>
+          <div class="field" data-for="justified">
+            <span>行の高さ <output id="rowHeightOut"></output></span>
+            <input id="rowHeight" type="range" min="10" max="80" step="1" />
+          </div>
+          <div class="field" data-for="grid">
+            <span>列数 <output id="colsOut"></output></span>
+            <input id="cols" type="range" min="1" max="6" step="1" />
+          </div>
+          <div class="field">
+            <span>間隔 <output id="gapOut"></output></span>
+            <input id="gap" type="range" min="0" max="60" step="1" />
+          </div>
+          <div class="field">
+            <span>出力幅 (px)</span>
+            <input id="collageWidth" type="number" min="800" max="12000" step="100" />
+          </div>
+          <label class="field-inline"><input type="color" id="collageBg" /> 背景色</label>
+        </details>
+
+        <details open>
+          <summary>書き出し</summary>
+          <div class="field">
+            <span>形式</span>
+            <select id="format">
+              <option value="image/jpeg">JPEG</option>
+              <option value="image/png">PNG</option>
+              <option value="image/webp">WebP</option>
+            </select>
+          </div>
+          <div class="field">
+            <span>画質 <output id="qualityOut"></output></span>
+            <input id="quality" type="range" min="0.5" max="1" step="0.01" />
+          </div>
+          <div class="field">
+            <span>長辺の最大サイズ</span>
+            <select id="maxEdge">
+              <option value="0">元のまま</option>
+              <option value="6000">6000px</option>
+              <option value="4096">4096px</option>
+              <option value="3000">3000px</option>
+              <option value="2048">2048px</option>
+              <option value="1080">1080px</option>
+            </select>
+          </div>
+          <div class="actions">
+            <button id="saveOne" class="primary">この写真を保存</button>
+            <button id="saveZip">すべてZIPで保存</button>
+            <button id="saveAll">すべて個別に保存</button>
+            <button id="saveCollage" class="primary" hidden>まとめた画像を保存</button>
+          </div>
+          <p class="progress" id="progress"></p>
+        </details>
+      </aside>
+    </main>
+
+    <div id="toast" class="toast" hidden></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
