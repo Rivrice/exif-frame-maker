@@ -41,7 +41,9 @@ jobs:
             echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
             echo "ANDROID_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
             echo "ANDROID_KEY_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "UPDATE_NOTE=以前のバージョンが入っている場合は、そのまま上書き更新できます。" >> "$GITHUB_ENV"
           else
+            echo "UPDATE_NOTE=⚠ このAPKは一時的な鍵で署名されています。以前のバージョンが入っている場合は、先にアンインストールしてからインストールしてください（「パッケージが既存のパッケージと競合する」と表示される場合）。" >> "$GITHUB_ENV"
             echo "::warning::ANDROID_KEYSTORE_BASE64 が未設定のため一時的な鍵で署名します（更新時はアンインストールが必要）"
             TMP_PASS=$(openssl rand -hex 16)
             keytool -genkeypair -keystore "$RUNNER_TEMP/release.keystore" -alias exifframe -keyalg RSA -keysize 2048 \
@@ -80,6 +82,6 @@ jobs:
             2. ダウンロードしたファイルを開く（「提供元不明のアプリ」の許可を求められたら許可）
             3. インストールしてアプリを起動
 
-            以前のバージョンが入っている場合は、そのまま上書き更新できます。
+            ${{ env.UPDATE_NOTE }}
 
             ブラウザ版: https://rivrice.github.io/exif-frame-maker/
