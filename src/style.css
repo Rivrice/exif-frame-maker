@@ -336,3 +336,26 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 @media (max-width: 360px) {
   .brand h1 { display: none; }
 }
+
+/* マイプリセット */
+.my-presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.my-presets:empty { display: none; }
+.preset.my { position: relative; }
+.mp-more {
+  position: absolute; top: 2px; right: 2px; width: 24px; height: 24px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; font-style: normal; font-size: 15px; line-height: 1;
+  background: var(--panel); border: 1px solid var(--line); color: var(--muted);
+}
+.my-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.my-io { display: inline-flex; gap: 14px; }
+.my-io .link { cursor: pointer; }
+.btn-save {
+  padding: 7px 12px; border-radius: 8px; border: 1px dashed var(--accent); background: none; color: var(--accent);
+  font-weight: 700; cursor: pointer; font-size: 12px;
+}
+.sheet-card button.danger { color: #d64545; }
+@media (max-width: 900px) {
+  .my-presets { grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .btn-save { min-height: 42px; font-size: 14px; }
+  .my-io .link { font-size: 14px; }
+}

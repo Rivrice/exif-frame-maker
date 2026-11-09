@@ -36,6 +36,7 @@ import { MAKERS } from './makers';
 import { IS_IOS, canvasToBlob, preloadFonts, renderCollage, renderOutput, renderPreview } from './render';
 import type { Colors, Corner, CornerItem, CreditPosition, ExifInfo, PhotoItem, Settings } from './types';
 import { IS_NATIVE, nativeSave, nativeShare } from './native';
+import { exportJson, loadPresets, parseImport, pickPresetData, samePreset, savePresets, type MyPreset } from './presets';
 
 // ---------- 状態 ----------
 
@@ -57,21 +58,25 @@ const DEFAULTS: Settings = {
   export: { format: 'image/jpeg', quality: 0.92, maxEdge: 0 },
 };
 
+/** 足りない項目を既定値で補う（古い保存データやプリセットにも対応） */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mergeSettings(raw: any): Settings {
+  return structuredClone({
+    ...DEFAULTS,
+    ...raw,
+    colors: { ...DEFAULTS.colors, ...raw.colors },
+    show: { ...DEFAULTS.show, ...raw.show },
+    collage: { ...DEFAULTS.collage, ...raw.collage },
+    credit: { ...DEFAULTS.credit, ...raw.credit },
+    corners: { ...DEFAULTS.corners, ...raw.corners },
+    export: { ...DEFAULTS.export, ...raw.export },
+  });
+}
+
 function loadSettings(): Settings {
   try {
     const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-    if (raw) {
-      return {
-        ...DEFAULTS,
-        ...raw,
-        colors: { ...DEFAULTS.colors, ...raw.colors },
-        show: { ...DEFAULTS.show, ...raw.show },
-        collage: { ...DEFAULTS.collage, ...raw.collage },
-        credit: { ...DEFAULTS.credit, ...raw.credit },
-        corners: { ...DEFAULTS.corners, ...raw.corners },
-        export: { ...DEFAULTS.export, ...raw.export },
-      };
-    }
+    if (raw) return mergeSettings(raw);
   } catch {
     /* noop */
   }
@@ -284,6 +289,163 @@ async function drawPresetThumbs() {
     cv.getContext('2d')!.drawImage(out, 0, 0);
     await new Promise((r) => setTimeout(r, 0));
   }
+  for (const mp of myPresets) {
+    if (token !== thumbsToken) return;
+    const s = mergeSettings({ ...settings, ...mp.data, aspect: 'auto' });
+    const out = await renderPreview(p, s, 260);
+    const cv = document.querySelector<HTMLCanvasElement>(`[data-mp="${mp.id}"] canvas`);
+    if (!cv) continue;
+    cv.width = out.width;
+    cv.height = out.height;
+    cv.getContext('2d')!.drawImage(out, 0, 0);
+    await new Promise((r) => setTimeout(r, 0));
+  }
+}
+
+// ---------- マイプリセット ----------
+
+let myPresets: MyPreset[] = loadPresets();
+let mpTarget: MyPreset | null = null;
+
+function persistPresets() {
+  if (!savePresets(myPresets)) toast('保存できませんでした（ブラウザの保存領域を確認してください）');
+}
+
+function renderMyPresets() {
+  const box = $('#myPresets');
+  box.innerHTML = '';
+  $('#myPresetsEmpty').hidden = myPresets.length > 0;
+  const now = pickPresetData(settings);
+  for (const mp of myPresets) {
+    const b = document.createElement('button');
+    b.className = 'preset my' + (samePreset(mp.data, now) ? ' active' : '');
+    b.dataset.mp = mp.id;
+    b.title = mp.name;
+    b.innerHTML = `<div class="pv"><canvas></canvas></div><span></span><i class="mp-more" aria-label="メニュー">⋯</i>`;
+    b.querySelector('span')!.textContent = mp.name;
+    b.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).closest('.mp-more')) openMpSheet(mp);
+      else applyPreset(mp);
+    });
+    b.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      openMpSheet(mp);
+    });
+    box.appendChild(b);
+  }
+}
+
+function markActivePreset() {
+  const now = pickPresetData(settings);
+  for (const mp of myPresets) {
+    document.querySelector(`[data-mp="${mp.id}"]`)?.classList.toggle('active', samePreset(mp.data, now));
+  }
+}
+
+function applyPreset(mp: MyPreset) {
+  settings = mergeSettings({ ...settings, ...structuredClone(mp.data) });
+  update();
+  toast(`「${mp.name}」を適用しました`);
+}
+
+function askName(def: string): string | null {
+  const v = prompt('プリセットの名前', def);
+  if (v === null) return null;
+  const name = v.trim().slice(0, 40);
+  return name || def;
+}
+
+function savePresetFromCurrent() {
+  const lay = getLayout(settings.layoutId);
+  const name = askName(`${lay.name} ${myPresets.length + 1}`);
+  if (name === null) return;
+  myPresets.push({ id: uid(), name, createdAt: Date.now(), data: pickPresetData(settings) });
+  persistPresets();
+  renderMyPresets();
+  scheduleThumbs(0);
+  toast(`「${name}」を保存しました`);
+}
+
+function openMpSheet(mp: MyPreset) {
+  mpTarget = mp;
+  $('#mpSheetTitle').textContent = mp.name;
+  $('#mpSheet').hidden = false;
+}
+
+function closeMpSheet() {
+  mpTarget = null;
+  $('#mpSheet').hidden = true;
+}
+
+function bindMyPresets() {
+  $('#mpSave').addEventListener('click', savePresetFromCurrent);
+  $('#mpApply').addEventListener('click', () => {
+    if (mpTarget) applyPreset(mpTarget);
+    closeMpSheet();
+  });
+  $('#mpOverwrite').addEventListener('click', () => {
+    if (!mpTarget) return;
+    if (!confirm(`「${mpTarget.name}」を今の設定で上書きしますか？`)) return;
+    mpTarget.data = pickPresetData(settings);
+    persistPresets();
+    renderMyPresets();
+    scheduleThumbs(0);
+    toast('上書き保存しました');
+    closeMpSheet();
+  });
+  $('#mpRename').addEventListener('click', () => {
+    if (!mpTarget) return;
+    const name = askName(mpTarget.name);
+    if (name === null) return;
+    mpTarget.name = name;
+    persistPresets();
+    renderMyPresets();
+    scheduleThumbs(0);
+    closeMpSheet();
+  });
+  $('#mpDelete').addEventListener('click', () => {
+    if (!mpTarget) return;
+    if (!confirm(`「${mpTarget.name}」を削除しますか？`)) return;
+    myPresets = myPresets.filter((p) => p !== mpTarget);
+    persistPresets();
+    renderMyPresets();
+    scheduleThumbs(0);
+    closeMpSheet();
+  });
+  $('#mpClose').addEventListener('click', closeMpSheet);
+  $('#mpSheet').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) closeMpSheet();
+  });
+  $('#mpExport').addEventListener('click', async () => {
+    if (!myPresets.length) return toast('保存したプリセットがありません');
+    const file = new File([exportJson(myPresets)], `exif-frame-presets_${new Date().toISOString().slice(0, 10)}.json`, {
+      type: 'application/json',
+    });
+    await deliver([file], false);
+  });
+  $<HTMLInputElement>('#mpImport').addEventListener('change', async (e) => {
+    const input = e.target as HTMLInputElement;
+    const f = input.files?.[0];
+    input.value = '';
+    if (!f) return;
+    try {
+      const list = parseImport(await f.text());
+      if (!list.length) return toast('読み込めるプリセットがありませんでした');
+      const ids = new Set(myPresets.map((p) => p.id));
+      let added = 0;
+      for (const p of list) {
+        if (ids.has(p.id) && myPresets.some((q) => q.id === p.id && samePreset(q.data, p.data) && q.name === p.name)) continue;
+        myPresets.push({ ...p, id: ids.has(p.id) ? uid() : p.id });
+        added++;
+      }
+      persistPresets();
+      renderMyPresets();
+      scheduleThumbs(0);
+      toast(added ? `${added}件のプリセットを読み込みました` : 'すべて読み込み済みのプリセットでした');
+    } catch (err) {
+      toast('読み込めませんでした: ' + (err as Error).message);
+    }
+  });
 }
 
 function refreshAll() {
@@ -642,6 +804,7 @@ function renderControls() {
 function update(thumbs = true) {
   saveSettings();
   renderControls();
+  markActivePreset();
   schedulePreview();
   if (thumbs) scheduleThumbs();
 }
@@ -866,6 +1029,8 @@ async function exportCollage() {
 // ---------- 起動 ----------
 
 buildStaticControls();
+bindMyPresets();
+renderMyPresets();
 refreshAll();
 // PWA（ホーム画面に追加してオフラインでも使える）
 if (!IS_NATIVE && import.meta.env.PROD && 'serviceWorker' in navigator) {
