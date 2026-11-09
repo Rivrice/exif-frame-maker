@@ -346,3 +346,19 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
   .btn-save { min-height: 42px; font-size: 14px; }
   .my-io .link { font-size: 14px; }
 }
+
+/* フォント */
+.font-tools { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 2px 0 8px; font-size: 12px; }
+.font-tools .link, .adv .link { cursor: pointer; }
+.adv { border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px 10px; margin: 4px 0 10px; }
+.adv .subhead { margin-top: 6px; }
+.font-roles { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+.font-roles .field { margin: 6px 0; }
+.user-fonts { list-style: none; margin: 4px 0 8px; padding: 0; display: grid; gap: 6px; }
+.user-fonts li { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 14px; }
+.user-fonts li.empty { color: var(--muted); font-size: 12px; }
+.uf-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 900px) {
+  .font-roles { grid-template-columns: 1fr; }
+  .font-tools { font-size: 14px; gap: 10px 18px; }
+}

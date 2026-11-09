@@ -1,4 +1,5 @@
-import type { ImageSource, LogoAsset, PhotoItem, Settings } from './types';
+import type { FontRole, ImageSource, LogoAsset, PhotoItem, Settings } from './types';
+import { isFontAvailable } from './fonts';
 import { findMaker, genericMaker, prettyModel, type MakerStyle } from './makers';
 
 export interface DisplayInfo {
@@ -50,6 +51,50 @@ export interface TextSpec {
   color: string;
   align?: CanvasTextAlign;
   spacing?: number; // em
+  /** 1行の中でフォントを切り替える場合の区間（つなげると text と同じになる） */
+  runs?: Run[];
+}
+
+export interface Run {
+  text: string;
+  family: string;
+}
+
+/** 全体のフォント（読み込まれていないフォントはレイアウト既定に戻す） */
+export function baseFont(rc: RC, def = rc.font) {
+  return isFontAvailable(rc.s.font) ? rc.s.font : def;
+}
+
+/** 項目ごとのフォント（未指定・未読込なら F） */
+export function roleFont(rc: RC, role: FontRole, F: string) {
+  const f = rc.s.fonts?.[role];
+  return f && isFontAvailable(f) ? f : F;
+}
+
+/**
+ * 複数の項目をつないだ1行を、項目ごとのフォントで描けるようにする。
+ * 例: mix(rc, F, [['lens', lens], ['date', date]], '   ')
+ */
+export function mix(rc: RC, F: string, parts: [FontRole, string][], sep: string, tf: (s: string) => string = (s) => s): { text: string; runs?: Run[] } {
+  const ps = parts.filter(([, t]) => t);
+  const runs: Run[] = [];
+  ps.forEach(([role, t], i) => {
+    if (i) runs.push({ text: tf(sep), family: F });
+    runs.push({ text: tf(t), family: roleFont(rc, role, F) });
+  });
+  const text = runs.map((r) => r.text).join('');
+  const same = runs.every((r) => r.family === F);
+  return same ? { text } : { text, runs };
+}
+
+/** mix の結果を TextSpec に反映 */
+export function withRuns(spec: TextSpec, m: { runs?: Run[] }): TextSpec {
+  return m.runs ? { ...spec, runs: m.runs } : spec;
+}
+
+function runsOf(text: string, t: TextSpec): Run[] {
+  if (t.runs && t.runs.map((r) => r.text).join('') === text) return t.runs;
+  return [{ text, family: t.family ?? 'Inter' }];
 }
 
 export function fontFamily(family: string) {
@@ -62,32 +107,36 @@ function setFont(ctx: CanvasRenderingContext2D, t: TextSpec) {
 
 export function textWidth(ctx: CanvasRenderingContext2D, text: string, t: TextSpec): number {
   if (!text) return 0;
-  setFont(ctx, t);
   const sp = (t.spacing ?? 0) * t.size;
-  if (!sp) return ctx.measureText(text).width;
   let w = 0;
-  for (const ch of text) w += ctx.measureText(ch).width + sp;
-  return w - sp;
+  for (const r of runsOf(text, t)) {
+    setFont(ctx, { ...t, family: r.family });
+    if (!sp) w += ctx.measureText(r.text).width;
+    else for (const ch of r.text) w += ctx.measureText(ch).width + sp;
+  }
+  return sp ? w - sp : w;
 }
 
 /** 縦方向は中央揃え（y = 行の中心） */
 export function drawText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, t: TextSpec): number {
   if (!text) return 0;
   const w = textWidth(ctx, text, t);
-  setFont(ctx, t);
   ctx.fillStyle = t.color;
   ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
   const align = t.align ?? 'left';
   let left = align === 'center' ? x - w / 2 : align === 'right' ? x - w : x;
   const sp = (t.spacing ?? 0) * t.size;
-  if (!sp) {
-    ctx.textAlign = 'left';
-    ctx.fillText(text, left, y);
-  } else {
-    ctx.textAlign = 'left';
-    for (const ch of text) {
-      ctx.fillText(ch, left, y);
-      left += ctx.measureText(ch).width + sp;
+  for (const r of runsOf(text, t)) {
+    setFont(ctx, { ...t, family: r.family });
+    if (!sp) {
+      ctx.fillText(r.text, left, y);
+      left += ctx.measureText(r.text).width;
+    } else {
+      for (const ch of r.text) {
+        ctx.fillText(ch, left, y);
+        left += ctx.measureText(ch).width + sp;
+      }
     }
   }
   return w;
@@ -132,7 +181,7 @@ export function maxLineWidth(ctx: CanvasRenderingContext2D, lines: Line[]) {
 // 利用者が自分で登録したロゴ画像がある場合のみ画像を使う（改変せずそのまま描画）。
 
 function makerSpec(rc: RC, h: number, color: string): TextSpec {
-  return { size: (h / 0.72) * 0.82, weight: 700, family: rc.s.font || rc.font, color };
+  return { size: (h / 0.72) * 0.82, weight: 700, family: roleFont(rc, 'maker', baseFont(rc)), color };
 }
 
 export function hasLogo(rc: RC) {
@@ -193,7 +242,7 @@ export function creditText(rc: RC) {
 
 /** クレジットの行（基準サイズにクレジット倍率を掛ける） */
 export function creditLine(rc: RC, size: number, spec: Omit<TextSpec, 'size'>): Line {
-  return { text: creditText(rc), spec: { ...spec, size: size * rc.s.credit.scale } };
+  return { text: creditText(rc), spec: { ...spec, size: size * rc.s.credit.scale, family: roleFont(rc, 'credit', spec.family ?? rc.font) } };
 }
 
 /** 文字色が明るいか */

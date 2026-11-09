@@ -28,6 +28,8 @@ export interface PhotoItem {
 export type Corner = 'tl' | 'tr' | 'bl' | 'br';
 export type CreditPosition = 'auto' | Corner;
 export type CornerItem = '' | 'maker' | 'makerModel' | 'model' | 'lens' | 'params' | 'date' | 'credit';
+/** 項目ごとにフォントを変えられる部分 */
+export type FontRole = 'maker' | 'model' | 'lens' | 'params' | 'date' | 'credit';
 
 export interface Colors {
   bg: string;
@@ -40,6 +42,8 @@ export interface Settings {
   layoutId: string;
   colors: Colors;
   font: string; // '' = レイアウト既定
+  /** 項目ごとのフォント（'' = 全体のフォントと同じ） */
+  fonts: Record<FontRole, string>;
   textScale: number;
   borderScale: number;
   aspect: string; // 'auto' | '1:1' | '4:5' | ...

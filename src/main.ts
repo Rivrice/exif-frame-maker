@@ -34,8 +34,9 @@ import { CORNER_KEYS, LAYOUTS, getLayout } from './layouts';
 import { getLogo, logoOrigin, removeUserLogo, setUserLogo } from './logos';
 import { MAKERS } from './makers';
 import { IS_IOS, canvasToBlob, preloadFonts, renderOutput, renderPreview } from './render';
-import type { Colors, Corner, CornerItem, CreditPosition, ExifInfo, PhotoItem, Settings } from './types';
+import type { Colors, Corner, CornerItem, CreditPosition, ExifInfo, FontRole, PhotoItem, Settings } from './types';
 import { IS_NATIVE, nativeSave, nativeShare } from './native';
+import { BUILTIN_FONTS, cleanFamily, importFont, isFontAvailable, loadUserFonts, removeFont, userFonts } from './fonts';
 import { exportJson, loadPresets, parseImport, pickPresetData, samePreset, savePresets, type MyPreset } from './presets';
 
 // ---------- 状態 ----------
@@ -46,6 +47,7 @@ const DEFAULTS: Settings = {
   layoutId: 'classic',
   colors: { ...LAYOUTS[0].colors },
   font: '',
+  fonts: { maker: '', model: '', lens: '', params: '', date: '', credit: '' },
   textScale: 1,
   borderScale: 1,
   aspect: 'auto',
@@ -62,7 +64,9 @@ const num = (v: any, def: number, min: number, max: number) =>
   typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : def;
 const oneOf = <T extends string>(v: any, list: readonly T[], def: T): T => (list.includes(v) ? v : def);
 const HEX = /^#[0-9a-f]{6}$/i;
-const FONTS = ['', 'Inter', 'Montserrat', 'Playfair Display', 'Cormorant Garamond', 'Oswald', 'JetBrains Mono', 'Noto Sans JP'] as const;
+const FONT_ROLES: FontRole[] = ['maker', 'model', 'lens', 'params', 'date', 'credit'];
+// 読み込んだフォントは後から登録されるので、名前として安全な文字列なら受け入れる
+const fontName = (v: any) => (typeof v === 'string' ? cleanFamily(v) : '');
 const ASPECTS = ['auto', '1:1', '4:5', '3:4', '2:3', '9:16', '3:2', '16:9'] as const;
 const CORNER_ITEMS: CornerItem[] = ['', 'maker', 'makerModel', 'model', 'lens', 'params', 'date', 'credit'];
 
@@ -72,6 +76,7 @@ const CORNER_ITEMS: CornerItem[] = ['', 'maker', 'makerModel', 'model', 'lens', 
  */
 function mergeSettings(raw: any): Settings {
   const r = obj(raw);
+  const fo = obj(r.fonts);
   const c = obj(r.colors), sh = obj(r.show), cr = obj(r.credit), co = obj(r.corners), ex = obj(r.export);
   const D = DEFAULTS;
   const color = (k: keyof Colors) => (typeof c[k] === 'string' && HEX.test(c[k]) ? c[k] : D.colors[k]);
@@ -82,7 +87,8 @@ function mergeSettings(raw: any): Settings {
   return {
     layoutId: getLayout(typeof r.layoutId === 'string' ? r.layoutId : D.layoutId).id,
     colors: { bg: color('bg'), text: color('text'), sub: color('sub'), accent: color('accent') },
-    font: oneOf(r.font, FONTS, ''),
+    font: fontName(r.font),
+    fonts: Object.fromEntries(FONT_ROLES.map((k) => [k, fontName(fo[k])])) as Settings['fonts'],
     textScale: num(r.textScale, D.textScale, 0.5, 1.8),
     borderScale: num(r.borderScale, D.borderScale, 0.3, 2.5),
     aspect: oneOf(r.aspect, ASPECTS, 'auto'),
@@ -628,6 +634,7 @@ function buildStaticControls() {
       update(thumbs);
     });
   bindSelect('font', (v) => (settings.font = v));
+  bindFonts();
   bindSelect('aspect', (v) => (settings.aspect = v));
   bindSelect('format', (v) => (settings.export.format = v as Settings['export']['format']), false);
   bindSelect('maxEdge', (v) => (settings.export.maxEdge = Number(v)), false);
@@ -768,7 +775,7 @@ function renderControls() {
   $$<HTMLInputElement>('[data-show]').forEach((inp) => (inp.checked = settings.show[inp.dataset.show as keyof Settings['show']]));
   const set = (id: string, v: string | number) => (($('#' + id) as HTMLInputElement).value = String(v));
   const out = (id: string, v: string) => ($('#' + id + 'Out').textContent = v);
-  set('font', settings.font);
+  fillFontSelects();
   set('aspect', settings.aspect);
   set('textScale', settings.textScale);
   out('textScale', `${Math.round(settings.textScale * 100)}%`);
@@ -806,6 +813,115 @@ function update(thumbs = true) {
   markActivePreset();
   schedulePreview();
   if (thumbs) scheduleThumbs();
+}
+
+// ---------- UI：フォント ----------
+
+const ROLE_LABEL: Record<FontRole, string> = {
+  maker: 'メーカー名', model: '機種', lens: 'レンズ', params: '撮影設定', date: '撮影日時', credit: 'クレジット',
+};
+
+function fontOptions(sel: HTMLSelectElement, value: string, emptyLabel: string) {
+  sel.innerHTML = '';
+  const add = (parent: HTMLElement, v: string, label: string) => {
+    const o = document.createElement('option');
+    o.value = v;
+    o.textContent = label;
+    if (v) o.style.fontFamily = `"${v}"`;
+    parent.appendChild(o);
+  };
+  add(sel, '', emptyLabel);
+  const g1 = document.createElement('optgroup');
+  g1.label = '内蔵フォント';
+  for (const f of BUILTIN_FONTS) add(g1, f, f);
+  sel.appendChild(g1);
+  const mine = userFonts();
+  if (mine.length) {
+    const g2 = document.createElement('optgroup');
+    g2.label = '読み込んだフォント';
+    for (const f of mine) add(g2, f, f);
+    sel.appendChild(g2);
+  }
+  // 別の端末で作ったプリセットなど、この端末に無いフォントが指定されている場合
+  if (value && !isFontAvailable(value)) add(sel, value, `${value}（この端末に無いため既定で表示）`);
+  sel.value = value;
+}
+
+function fillFontSelects() {
+  fontOptions($<HTMLSelectElement>('#font'), settings.font, 'レイアウト既定');
+  $$<HTMLSelectElement>('[data-font-role]').forEach((sel) => {
+    const role = sel.dataset.fontRole as FontRole;
+    fontOptions(sel, settings.fonts[role], '全体と同じ');
+  });
+  renderUserFonts();
+}
+
+function renderUserFonts() {
+  const ul = $('#userFonts');
+  ul.innerHTML = '';
+  const list = userFonts();
+  if (!list.length) {
+    ul.innerHTML = '<li class="empty">まだありません</li>';
+    return;
+  }
+  for (const f of list) {
+    const li = document.createElement('li');
+    li.innerHTML = '<span class="uf-name"></span><button class="btn-sm ghost">削除</button>';
+    const name = li.querySelector<HTMLElement>('.uf-name')!;
+    name.textContent = f;
+    name.style.fontFamily = `"${f}", system-ui`;
+    const used = FONT_ROLES.filter((r) => settings.fonts[r] === f).map((r) => ROLE_LABEL[r]);
+    if (settings.font === f) used.unshift('全体');
+    if (used.length) li.title = `使用中: ${used.join('、')}`;
+    li.querySelector('button')!.addEventListener('click', async () => {
+      if (!confirm(`フォント「${f}」を削除しますか？\n（使っている項目は既定のフォントに戻ります）`)) return;
+      await removeFont(f);
+      if (settings.font === f) settings.font = '';
+      for (const r of FONT_ROLES) if (settings.fonts[r] === f) settings.fonts[r] = '';
+      update();
+    });
+    ul.appendChild(li);
+  }
+}
+
+function bindFonts() {
+  $$<HTMLSelectElement>('[data-font-role]').forEach((sel) =>
+    sel.addEventListener('change', () => {
+      settings.fonts[sel.dataset.fontRole as FontRole] = sel.value;
+      update();
+    }),
+  );
+  const adv = $<HTMLButtonElement>('#advToggle');
+  adv.addEventListener('click', () => {
+    const open = $('#advPanel').hidden;
+    $('#advPanel').hidden = !open;
+    adv.textContent = open ? '詳細オプションを閉じる' : '詳細オプションを表示';
+    adv.setAttribute('aria-expanded', String(open));
+  });
+  $$<HTMLInputElement>('[data-font-import]').forEach((input) => {
+    // Androidアプリではフォントの種類指定が効かないことがあるため全ファイルを許可
+    input.accept = IS_NATIVE ? '' : '.ttf,.otf,.woff,.woff2,.ttc,font/ttf,font/otf,font/woff,font/woff2';
+    input.addEventListener('change', async () => {
+      const files = [...(input.files ?? [])];
+      input.value = '';
+      if (!files.length) return;
+      const target = input.dataset.fontImport;
+      let last = '';
+      for (const f of files) {
+        try {
+          last = await importFont(f);
+          toast(`フォント「${last}」を読み込みました`);
+        } catch (e) {
+          toast(`${f.name}: ${(e as Error).message}`, 5000);
+        }
+      }
+      if (last) {
+        if (target === 'global') settings.font = last;
+        else if (target && (FONT_ROLES as string[]).includes(target)) settings.fonts[target as FontRole] = last;
+      }
+      update();
+    });
+  });
 }
 
 // ---------- UI：Exif編集 ----------
@@ -1024,6 +1140,12 @@ if (!IS_NATIVE && import.meta.env.PROD && 'serviceWorker' in navigator) {
 }
 if (IS_NATIVE) document.body.classList.add('native');
 
+loadUserFonts().then((list) => {
+  if (!list.length) return;
+  fillFontSelects();
+  schedulePreview(0);
+  scheduleThumbs(0);
+});
 preloadFonts().then(() => {
   schedulePreview(0);
   scheduleThumbs(0);

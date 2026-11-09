@@ -1,6 +1,6 @@
-import type { Colors, Corner, CornerItem, ImageSource } from './types';
+import type { Colors, Corner, CornerItem, FontRole, ImageSource } from './types';
 import {
-  blurred, canvas, creditLine, creditText, drawCover, drawLogo, drawPhoto, drawStack, drawText, fit, hasLogo,
+  baseFont, blurred, canvas, creditLine, creditText, drawCover, drawLogo, drawPhoto, drawStack, drawText, fit, hasLogo, mix, roleFont, withRuns,
   isLight, logoWidth, maxLineWidth, parseAspect, stackHeight, textWidth, withAlpha, type Line, type RC, type TextSpec,
 } from './draw';
 
@@ -17,7 +17,7 @@ export interface Layout {
   render(src: ImageSource, iw: number, ih: number, rc: RC): HTMLCanvasElement;
 }
 
-const fam = (rc: RC, def: string) => rc.s.font || def;
+const fam = (rc: RC, def: string) => baseFont(rc, def);
 /** 文字やフチの基準長：基本は短辺、パノラマなど極端な比率では面積から補正 */
 const base = (w: number, h: number) => Math.max(Math.min(w, h), Math.sqrt(w * h) * 0.82);
 const units = (short: number, rc: RC) => ({ u: (short / 100) * rc.s.borderScale, t: (short / 100) * rc.s.textScale });
@@ -41,11 +41,12 @@ function cornerText(item: CornerItem, rc: RC): string {
 }
 
 function cornerSpec(item: CornerItem, t: number, rc: RC, F: string, main: string, sub: string): TextSpec {
+  const family = item === 'model' || item === 'lens' || item === 'params' || item === 'date' || item === 'credit' ? roleFont(rc, item, F) : F;
   switch (item) {
-    case 'model': return { size: 2.6 * t, weight: 700, family: F, color: main };
-    case 'params': return { size: 2.2 * t, weight: 600, family: F, color: main };
-    case 'credit': return { size: 2 * t * rc.s.credit.scale, weight: 600, family: F, color: main };
-    default: return { size: 1.9 * t, weight: 500, family: F, color: sub };
+    case 'model': return { size: 2.6 * t, weight: 700, family, color: main };
+    case 'params': return { size: 2.2 * t, weight: 600, family, color: main };
+    case 'credit': return { size: 2 * t * rc.s.credit.scale, weight: 600, family, color: main };
+    default: return { size: 1.9 * t, weight: 500, family, color: sub };
   }
 }
 
@@ -67,7 +68,7 @@ function drawCornerItem(
   }
   if (item === 'makerModel') {
     const lh = 3.4 * t;
-    const spec: TextSpec = { size: 2.6 * t, weight: 600, family: F, color: main };
+    const spec: TextSpec = { size: 2.6 * t, weight: 600, family: roleFont(rc, 'model', F), color: main };
     const lw = logoWidth(ctx, rc, lh);
     const gap = lw && rc.info.model ? 1.6 * t : 0;
     const mw = textWidth(ctx, rc.info.model, spec);
@@ -116,12 +117,12 @@ export const LAYOUTS: Layout[] = [
       const F = fam(rc, this.font);
       const { colors: C } = rc.s;
       const left: Line[] = [
-        { text: rc.info.model, spec: { size: 2.7 * t, weight: 700, family: F, color: C.text } },
-        { text: rc.info.lens, spec: { size: 1.9 * t, weight: 400, family: F, color: C.sub } },
+        { text: rc.info.model, spec: { size: 2.7 * t, weight: 700, family: roleFont(rc, 'model', F), color: C.text } },
+        { text: rc.info.lens, spec: { size: 1.9 * t, weight: 400, family: roleFont(rc, 'lens', F), color: C.sub } },
       ];
       const right: Line[] = [
-        { text: join(rc.info.params), spec: { size: 2.5 * t, weight: 700, family: F, color: C.text, align: 'right' } },
-        { text: rc.info.date, spec: { size: 1.8 * t, weight: 400, family: F, color: C.sub, align: 'right' } },
+        { text: join(rc.info.params), spec: { size: 2.5 * t, weight: 700, family: roleFont(rc, 'params', F), color: C.text, align: 'right' } },
+        { text: rc.info.date, spec: { size: 1.8 * t, weight: 400, family: roleFont(rc, 'date', F), color: C.sub, align: 'right' } },
         creditLine(rc, 1.8 * t, { weight: 500, family: F, color: C.sub, align: 'right' }),
       ];
       const bar = Math.max(11 * u, 9.5 * t, stackHeight(right, 0.5 * t) + 3.5 * t, stackHeight(left, 0.5 * t) + 3.5 * t);
@@ -162,10 +163,11 @@ export const LAYOUTS: Layout[] = [
       const F = fam(rc, this.font);
       const C = rc.s.colors;
       const side = 5 * u;
+      const ld = mix(rc, F, [['lens', rc.info.lens], ['date', rc.info.date]], '   ');
       const lines: Line[] = [
-        { text: rc.info.model, spec: { size: 2.6 * t, weight: 700, family: F, color: C.text, align: 'center' } },
-        { text: join(rc.info.params), spec: { size: 2 * t, weight: 400, family: F, color: C.sub, align: 'center' } },
-        { text: join([rc.info.lens, rc.info.date], '   '), spec: { size: 1.6 * t, family: F, color: C.sub, align: 'center' } },
+        { text: rc.info.model, spec: { size: 2.6 * t, weight: 700, family: roleFont(rc, 'model', F), color: C.text, align: 'center' } },
+        { text: join(rc.info.params), spec: { size: 2 * t, weight: 400, family: roleFont(rc, 'params', F), color: C.sub, align: 'center' } },
+        { text: ld.text, spec: withRuns({ size: 1.6 * t, family: F, color: C.sub, align: 'center' }, ld) },
         creditLine(rc, 1.7 * t, { weight: 500, family: F, color: C.sub, align: 'center' }),
       ];
       const logoH = hasLogo(rc) ? 4.6 * t : 0;
@@ -209,13 +211,14 @@ export const LAYOUTS: Layout[] = [
       drawPhoto(ctx, src, b, b, iw, ih);
       const cx = c.width / 2;
       const cy = b + ih + (bottom - crH) / 2;
-      const s1 = { size: 2.4 * t, weight: 700, family: F, color: C.text };
+      const s1 = { size: 2.4 * t, weight: 700, family: roleFont(rc, 'model', F), color: C.text };
       const s2 = { size: 1.8 * t, weight: 400, family: F, color: C.sub, align: 'center' as const };
+      const subM = mix(rc, F, [['params', join(rc.info.params)], ['date', rc.info.date]], '  ·  ');
       const lh = 3.6 * t;
       const lw = logoWidth(ctx, rc, lh);
       const mw = textWidth(ctx, rc.info.model, s1);
       const gap = lw && mw ? 2.2 * t : 0;
-      const sub = join([join(rc.info.params), rc.info.date], '  ·  ');
+      const sub = subM.text;
       const hasSub = !!sub;
       const y1 = hasSub ? cy - 1.9 * t : cy;
       const x0 = cx - (lw + gap + mw) / 2;
@@ -225,10 +228,10 @@ export const LAYOUTS: Layout[] = [
         ctx.fillRect(x0 + lw + gap / 2 - 0.08 * t, y1 - 1.7 * t, Math.max(1, 0.16 * t), 3.4 * t);
       }
       drawText(ctx, rc.info.model, x0 + lw + gap, y1, s1);
-      if (hasSub) drawText(ctx, sub, cx, cy + 2.6 * t, fit(ctx, sub, s2, c.width - b * 4));
+      if (hasSub) drawText(ctx, sub, cx, cy + 2.6 * t, fit(ctx, sub, withRuns(s2, subM), c.width - b * 4));
       if (cr) {
         const y = cy + (hasSub ? 2.6 * t + 1.8 * t * 0.65 : 2 * t) + 0.8 * t + crSize * 0.65;
-        drawText(ctx, cr, cx, y, fit(ctx, cr, { ...s2, size: crSize, weight: 500 }, c.width - b * 4));
+        drawText(ctx, cr, cx, y, fit(ctx, cr, { ...s2, size: crSize, weight: 500, family: roleFont(rc, 'credit', F) }, c.width - b * 4));
       }
       return c;
     },
@@ -254,10 +257,11 @@ export const LAYOUTS: Layout[] = [
       ctx.fillStyle = g;
       ctx.fillRect(0, ih - gh, iw, gh);
       const px = 5 * u;
+      const ld = mix(rc, F, [['lens', rc.info.lens], ['date', rc.info.date]], '   ');
       const lines: Line[] = [
-        { text: rc.info.model, spec: { size: 3 * t, weight: 700, family: F, color: C.text } },
-        { text: join(rc.info.params, '   '), spec: { size: 2.1 * t, weight: 500, family: F, color: C.sub } },
-        { text: join([rc.info.lens, rc.info.date], '   '), spec: { size: 1.6 * t, family: F, color: C.sub } },
+        { text: rc.info.model, spec: { size: 3 * t, weight: 700, family: roleFont(rc, 'model', F), color: C.text } },
+        { text: join(rc.info.params, '   '), spec: { size: 2.1 * t, weight: 500, family: roleFont(rc, 'params', F), color: C.sub } },
+        { text: ld.text, spec: withRuns({ size: 1.6 * t, family: F, color: C.sub }, ld) },
         creditLine(rc, 1.7 * t, { weight: 600, family: F, color: C.text }),
       ];
       const sh = stackHeight(lines, 0.5 * t);
@@ -314,7 +318,7 @@ export const LAYOUTS: Layout[] = [
       }
       const cr = creditText(rc);
       if (cr) {
-        const cs = fit(ctx, cr, { ...edge, size: 1.6 * t * rc.s.credit.scale, align: 'right' as const }, W * 0.45);
+        const cs = fit(ctx, cr, { ...edge, family: roleFont(rc, 'credit', F), size: 1.6 * t * rc.s.credit.scale, align: 'right' as const }, W * 0.45);
         cs.size = Math.min(cs.size, band * 0.8);
         const cw = textWidth(ctx, cr, cs) + 2 * u;
         ctx.fillStyle = C.bg;
@@ -327,11 +331,14 @@ export const LAYOUTS: Layout[] = [
       const lw = logoWidth(ctx, rc, 3.6 * t);
       drawLogo(ctx, rc, side, cy, 3.6 * t, 'left', C.text);
       const mx = side + lw + (lw ? 2.4 * t : 0);
-      const rText = join([join(rc.info.params), rc.info.date ? `'${rc.info.date.slice(2)}` : ''], '   ');
-      const rw = textWidth(ctx, rText, right);
-      drawText(ctx, rText, W - side, cy, fit(ctx, rText, right, W * 0.6));
-      const modelLens = join([rc.info.model, rc.info.lens], '  /  ');
-      drawText(ctx, modelLens, mx, cy, fit(ctx, modelLens, left, Math.max(W * 0.2, W - side * 2 - lw - rw - 6 * t)));
+      const rM = mix(rc, F, [['params', join(rc.info.params)], ['date', rc.info.date ? `'${rc.info.date.slice(2)}` : '']], '   ');
+      const rText = rM.text;
+      const rSpec = withRuns(right, rM);
+      const rw = textWidth(ctx, rText, rSpec);
+      drawText(ctx, rText, W - side, cy, fit(ctx, rText, rSpec, W * 0.6));
+      const mlM = mix(rc, F, [['model', rc.info.model], ['lens', rc.info.lens]], '  /  ');
+      const modelLens = mlM.text;
+      drawText(ctx, modelLens, mx, cy, fit(ctx, modelLens, withRuns(left, mlM), Math.max(W * 0.2, W - side * 2 - lw - rw - 6 * t)));
       return c;
     },
   },
@@ -401,6 +408,7 @@ export const LAYOUTS: Layout[] = [
       }
       const accentBar = { size: 1.9 * t, weight: 700, family: F, color: C.accent, spacing: 0.15 };
       const items: [string, string][] = [];
+      const ROLE: Record<string, FontRole> = { CAMERA: 'model', LENS: 'lens', SETTINGS: 'params', DATE: 'date', PHOTO: 'credit' };
       if (rc.info.model) items.push(['CAMERA', rc.info.model]);
       if (rc.info.lens) items.push(['LENS', rc.info.lens]);
       if (rc.info.params.length) items.push(['SETTINGS', join(rc.info.params)]);
@@ -416,7 +424,7 @@ export const LAYOUTS: Layout[] = [
         drawText(ctx, k, x, y + 1.9 * t * 0.65, accentBar);
         y += 1.9 * t * 1.3 + 0.6 * t;
         const vs = valSize(k);
-        drawText(ctx, v, x, y + vs * 0.65, fit(ctx, v, { ...val, size: vs }, maxW));
+        drawText(ctx, v, x, y + vs * 0.65, fit(ctx, v, { ...val, size: vs, family: roleFont(rc, ROLE[k], F) }, maxW));
         y += vs * 1.3 + gap;
       }
       return c;
@@ -449,10 +457,11 @@ export const LAYOUTS: Layout[] = [
       drawPhoto(ctx, src, m, m, iw, ih);
       const cx = c.width / 2;
       const cy = m + ih + bottom / 2;
-      const title = upper(join([rc.info.maker && !hasLogo(rc) ? rc.info.maker.display : '', rc.info.model], ' '));
+      const tM = mix(rc, F, [['maker', rc.info.maker && !hasLogo(rc) ? rc.info.maker.display : ''], ['model', rc.info.model]], ' ', upper);
+      const pdM = mix(rc, F, [['params', join(rc.info.params, '  ·  ')], ['date', rc.info.date]], '  ·  ');
       const lines: Line[] = [
-        { text: title, spec: { size: 2.8 * t, weight: 700, family: F, color: C.text, align: 'center', spacing: 0.3 } },
-        { text: join([...rc.info.params, rc.info.date], '  ·  '), spec: { size: 2.2 * t, weight: 600, family: F, color: C.sub, align: 'center', spacing: 0.08 } },
+        { text: tM.text, spec: withRuns({ size: 2.8 * t, weight: 700, family: F, color: C.text, align: 'center', spacing: 0.3 }, tM) },
+        { text: pdM.text, spec: withRuns({ size: 2.2 * t, weight: 600, family: F, color: C.sub, align: 'center', spacing: 0.08 }, pdM) },
         creditLine(rc, 2.1 * t, { weight: 600, family: F, color: C.sub, align: 'center', spacing: 0.08 }),
       ];
       const lh = hasLogo(rc) ? 3.6 * t : 0;
@@ -486,10 +495,11 @@ export const LAYOUTS: Layout[] = [
       ctx.fillRect(0, 0, c.width, c.height);
       drawPhoto(ctx, src, b, b, iw, ih);
       const cx = c.width / 2;
+      const plM = mix(rc, F, [['params', join(rc.info.params, '  |  ')], ['lens', rc.info.lens]], '  |  ');
       const lines: Line[] = [
-        { text: rc.info.model, spec: { size: 2.7 * t, weight: 700, family: F, color: C.text, align: 'center', spacing: 0.05 } },
-        { text: join([...rc.info.params, rc.info.lens], '  |  '), spec: { size: 2.1 * t, weight: 500, family: F, color: C.sub, align: 'center' } },
-        { text: rc.info.date, spec: { size: 1.8 * t, family: F, color: C.sub, align: 'center' } },
+        { text: rc.info.model, spec: { size: 2.7 * t, weight: 700, family: roleFont(rc, 'model', F), color: C.text, align: 'center', spacing: 0.05 } },
+        { text: plM.text, spec: withRuns({ size: 2.1 * t, weight: 500, family: F, color: C.sub, align: 'center' }, plM) },
+        { text: rc.info.date, spec: { size: 1.8 * t, family: roleFont(rc, 'date', F), color: C.sub, align: 'center' } },
         creditLine(rc, 1.8 * t, { weight: 500, family: F, color: C.sub, align: 'center' }),
       ];
       const lh = hasLogo(rc) ? 5.6 * t : 0;
@@ -527,17 +537,18 @@ export const LAYOUTS: Layout[] = [
       const px = 4 * u;
       const small = { size: 1.6 * t, weight: 400, family: F, color: C.sub, spacing: 0.2 };
       const cr = upper(creditText(rc));
-      if (cr) drawText(ctx, cr, px, bar / 2, fit(ctx, cr, { ...small, size: Math.min(1.6 * t * rc.s.credit.scale, bar * 0.6) }, iw * 0.55));
-      drawText(ctx, rc.info.date, iw - px, bar / 2, { ...small, align: 'right' });
+      if (cr) drawText(ctx, cr, px, bar / 2, fit(ctx, cr, { ...small, family: roleFont(rc, 'credit', F), size: Math.min(1.6 * t * rc.s.credit.scale, bar * 0.6) }, iw * 0.55));
+      drawText(ctx, rc.info.date, iw - px, bar / 2, { ...small, family: roleFont(rc, 'date', F), align: 'right' });
       const cy = bar + ih + bar / 2;
       const lh = 3.4 * t;
       const lw = drawLogo(ctx, rc, px, cy, lh, 'left', C.text);
-      const main = upper(join([rc.info.model, ...rc.info.params], '   '));
-      const spec = { size: 2.3 * t, weight: 500, family: F, color: C.text, spacing: 0.18, align: 'center' as const };
+      const mM = mix(rc, F, [['model', rc.info.model], ['params', join(rc.info.params, '   ')]], '   ', upper);
+      const main = mM.text;
+      const spec = withRuns({ size: 2.3 * t, weight: 500, family: F, color: C.text, spacing: 0.18, align: 'center' as const }, mM);
       drawText(ctx, main, iw / 2, cy, fit(ctx, main, spec, iw - (lw + px) * 2 - 4 * t));
       const lens = upper(rc.info.lens);
       if (lens) {
-        const ls = { size: 1.5 * t, weight: 400, family: F, color: C.accent, spacing: 0.15, align: 'right' as const };
+        const ls = { size: 1.5 * t, weight: 400, family: roleFont(rc, 'lens', F), color: C.accent, spacing: 0.15, align: 'right' as const };
         drawText(ctx, lens, iw - px, cy, fit(ctx, lens, ls, iw * 0.22));
       }
       return c;
@@ -649,10 +660,11 @@ function fixedLayout(src: ImageSource, iw: number, ih: number, rc: RC, aspect: n
   drawPhoto(ctx, src, x, y, w, h);
   const cx = W / 2;
   const cy = y + h + (H - (y + h)) / 2;
+  const ld = mix(rc, F, [['lens', rc.info.lens], ['date', rc.info.date]], '   ');
   const lines: Line[] = [
-    { text: rc.info.model, spec: { size: 2.6 * t, weight: 700, family: F, color: C.text, align: 'center' } },
-    { text: join(rc.info.params, '   '), spec: { size: 2 * t, weight: 400, family: F, color: C.sub, align: 'center' } },
-    { text: join([rc.info.lens, rc.info.date], '   '), spec: { size: 1.6 * t, family: F, color: C.sub, align: 'center' } },
+    { text: rc.info.model, spec: { size: 2.6 * t, weight: 700, family: roleFont(rc, 'model', F), color: C.text, align: 'center' } },
+    { text: join(rc.info.params, '   '), spec: { size: 2 * t, weight: 400, family: roleFont(rc, 'params', F), color: C.sub, align: 'center' } },
+    { text: ld.text, spec: withRuns({ size: 1.6 * t, family: F, color: C.sub, align: 'center' }, ld) },
     creditLine(rc, 1.7 * t, { weight: 500, family: F, color: C.sub, align: 'center' }),
   ];
   const lh = hasLogo(rc) ? 4 * t : 0;

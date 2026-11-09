@@ -1,5 +1,5 @@
 import type { PhotoItem, Settings } from './types';
-import { buildInfo, drawText, isLight, lastPhotoRect, padToAspect, parseAspect, resetPhotoRect, type RC } from './draw';
+import { baseFont, buildInfo, drawText, roleFont, isLight, lastPhotoRect, padToAspect, parseAspect, resetPhotoRect, type RC } from './draw';
 import { getLayout } from './layouts';
 import { getLogo } from './logos';
 
@@ -61,7 +61,7 @@ function drawCornerCredit(out: HTMLCanvasElement, rc: RC, layoutFont: string) {
   drawText(ctx, rc.info.artist, x, y, {
     size,
     weight: 600,
-    family: rc.s.font || layoutFont,
+    family: roleFont(rc, 'credit', baseFont(rc, layoutFont)),
     color,
     align: pos.endsWith('l') ? 'left' : 'right',
   });

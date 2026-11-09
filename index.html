@@ -92,17 +92,29 @@
         <details open data-tab="text">
           <summary>テキスト・サイズ</summary>
           <div class="field">
-            <span>フォント</span>
-            <select id="font">
-              <option value="">レイアウト既定</option>
-              <option>Inter</option>
-              <option>Montserrat</option>
-              <option>Playfair Display</option>
-              <option>Cormorant Garamond</option>
-              <option>Oswald</option>
-              <option>JetBrains Mono</option>
-              <option>Noto Sans JP</option>
-            </select>
+            <span>フォント（全体）</span>
+            <select id="font" data-font-select="global"></select>
+          </div>
+          <div class="font-tools">
+            <label class="link">＋ フォントを読み込む<input type="file" data-font-import="global" hidden /></label>
+            <button class="link" id="advToggle" aria-expanded="false">詳細オプションを表示</button>
+          </div>
+          <div class="adv" id="advPanel" hidden>
+            <div class="subhead">項目ごとのフォント</div>
+            <div class="font-roles">
+              <label class="field"><span>メーカー名</span><select data-font-role="maker"></select></label>
+              <label class="field"><span>機種</span><select data-font-role="model"></select></label>
+              <label class="field"><span>レンズ</span><select data-font-role="lens"></select></label>
+              <label class="field"><span>撮影設定</span><select data-font-role="params"></select></label>
+              <label class="field"><span>撮影日時</span><select data-font-role="date"></select></label>
+            </div>
+            <div class="subhead">読み込んだフォント</div>
+            <ul class="user-fonts" id="userFonts"></ul>
+            <label class="link">＋ フォントを読み込む<input type="file" data-font-import="" hidden /></label>
+            <p class="hint">
+              TTF / OTF / WOFF / WOFF2 に対応。フォントはこの端末内にだけ保存されます。
+              画像に使ってよいか、フォントのライセンスをご確認ください。マイプリセットを書き出してもフォント本体は含まれません。
+            </p>
           </div>
           <div class="field">
             <span>文字サイズ <output id="textScaleOut"></output></span>
@@ -134,6 +146,13 @@
           <div class="field">
             <span>クレジットの文字サイズ <output id="creditScaleOut"></output></span>
             <input id="creditScale" type="range" min="0.5" max="3" step="0.05" />
+          </div>
+          <div class="field">
+            <span>クレジットのフォント</span>
+            <select data-font-role="credit"></select>
+          </div>
+          <div class="font-tools">
+            <label class="link">＋ クレジット用のフォントを読み込む<input type="file" data-font-import="credit" hidden /></label>
           </div>
           <div class="field">
             <span>クレジットの位置</span>
