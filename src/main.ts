@@ -349,7 +349,7 @@ function persistPresets() {
 function renderMyPresets() {
   const box = $('#myPresets');
   box.innerHTML = '';
-  $('#myPresetsEmpty').hidden = myPresets.length > 0;
+  $('#myPresetPanel').hidden = myPresets.length === 0;
   const now = pickPresetData(settings);
   for (const mp of myPresets) {
     const b = document.createElement('button');
@@ -368,12 +368,6 @@ function renderMyPresets() {
     });
     box.appendChild(b);
   }
-  // 一覧の最後に「＋」の枠（プリセットファイルの読込）
-  const add = document.createElement('div');
-  add.className = 'preset mp-add';
-  add.innerHTML = '<button class="mp-add-plus" aria-label="プリセットを読込"><b>＋</b></button><button class="mp-add-label">読込</button>';
-  add.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => $<HTMLInputElement>('#mpImport').click()));
-  box.appendChild(add);
 }
 
 function markActivePreset() {
@@ -456,7 +450,6 @@ function bindMyPresets() {
   $('#mpSheet').addEventListener('click', (e) => {
     if (e.target === e.currentTarget) closeMpSheet();
   });
-  $('#mpSave').addEventListener('click', savePresetFromCurrent);
   $('#mpExport').addEventListener('click', async () => {
     if (!myPresets.length) return toast('保存したプリセットがありません');
     const file = new File([exportJson(myPresets)], `exif-frame-presets_${new Date().toISOString().slice(0, 10)}.json`, {
@@ -580,6 +573,15 @@ function buildStaticControls() {
     });
     presets.appendChild(b);
   }
+  // レイアウト一覧の最後に「＋」の枠：＋で今の設定をマイプリセットに保存、「読込」でファイルから読み込み
+  const add = document.createElement('div');
+  add.className = 'preset mp-add';
+  add.innerHTML =
+    '<button class="mp-add-plus" title="今の設定をマイプリセットに保存" aria-label="今の設定をマイプリセットに保存"><b>＋</b></button>' +
+    '<button class="mp-add-label" title="マイプリセットのファイルを読み込む">読込</button>';
+  add.querySelector('.mp-add-plus')!.addEventListener('click', savePresetFromCurrent);
+  add.querySelector('.mp-add-label')!.addEventListener('click', () => $<HTMLInputElement>('#mpImport').click());
+  presets.appendChild(add);
 
   // パレット
   const sw = $('#swatches');
