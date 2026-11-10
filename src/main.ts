@@ -895,6 +895,52 @@ function renderHistory() {
   }
 }
 
+/**
+ * スライダーを「つまみ（〇）を動かしたときだけ」反応させる（スマホでの誤タップ防止）。
+ * バーのつまみ以外の場所に触れても値は変わらず、そのまま画面をスクロールできる。
+ */
+function thumbOnly(input: HTMLInputElement) {
+  const wrap = input.parentElement!;
+  input.classList.add('thumb-only');
+  const min = Number(input.min), max = Number(input.max);
+  const geo = () => {
+    const r = input.getBoundingClientRect();
+    const tw = r.height + 10; // つまみの直径（CSSでバーの高さ＋10px）
+    const frac = (Number(input.value) - min) / (max - min);
+    return { r, tw, cx: r.left + tw / 2 + frac * (r.width - tw) };
+  };
+  let drag: { id: number; offset: number } | null = null;
+  wrap.addEventListener('pointerdown', (e) => {
+    const { r, tw, cx } = geo();
+    const hit = Math.abs(e.clientX - cx) <= tw / 2 + 10 && e.clientY >= r.top - 14 && e.clientY <= r.bottom + 14;
+    if (!hit) return;
+    e.preventDefault();
+    wrap.setPointerCapture(e.pointerId);
+    drag = { id: e.pointerId, offset: e.clientX - cx };
+    input.classList.add('dragging');
+  });
+  wrap.addEventListener('pointermove', (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const { r, tw } = geo();
+    const frac = Math.min(1, Math.max(0, (e.clientX - drag.offset - r.left - tw / 2) / (r.width - tw)));
+    const v = String(Math.round(min + frac * (max - min)));
+    if (v !== input.value) {
+      input.value = v;
+      input.dispatchEvent(new Event('input'));
+    }
+  });
+  const end = (e: PointerEvent) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    drag = null;
+    input.classList.remove('dragging');
+    input.dispatchEvent(new Event('change'));
+  };
+  wrap.addEventListener('pointerup', end);
+  wrap.addEventListener('pointercancel', end);
+  // ラベル部分のクリックでつまみが動かないように
+  wrap.addEventListener('click', (e) => e.preventDefault());
+}
+
 function stopPicking() {
   picking = false;
   document.body.classList.remove('picking');
@@ -964,6 +1010,7 @@ function bindColorEditor() {
     });
     el.addEventListener('change', () => setColor(settings.colors[colorTarget], true));
   }
+  for (const [id] of ids) thumbOnly($<HTMLInputElement>(id));
   const hexInput = $<HTMLInputElement>('#ceHex');
   const commitHex = () => {
     const h = normalizeHex(hexInput.value);

@@ -518,3 +518,8 @@ body.picking #preview { cursor: crosshair; touch-action: none; outline: 3px soli
 @media (max-width: 900px) {
   .stage-inner { padding: 8px 6px; }
 }
+
+/* スライダー：つまみを動かしたときだけ反応（操作は JS 側で処理） */
+.ce-slider { touch-action: pan-y; }
+.ce-slider input.thumb-only { pointer-events: none; }
+.ce-slider input.thumb-only.dragging::-webkit-slider-thumb { transform: scale(1.15); }
