@@ -1172,7 +1172,7 @@ const isTextDefault = () => JSON.stringify(textPart(settings, false)) === JSON.s
 function syncResetText() {
   const same = isTextDefault();
   $<HTMLButtonElement>('#resetText').disabled = same;
-  $('#resetTextHint').textContent = same ? '文字の設定は初期設定のままです。' : '';
+  $('#resetTextHint').textContent = same ? 'テキスト設定は初期設定のままです。' : '';
 }
 
 function bindResetText() {
@@ -1193,7 +1193,7 @@ function bindResetText() {
     close();
     update();
     // 押し間違えたときのために、少しの間「元に戻す」を出す
-    toast('文字の設定を初期設定に戻しました', 6000, {
+    toast('テキスト設定をリセットしました', 6000, {
       label: '元に戻す',
       run: () => {
         Object.assign(settings, backup);
