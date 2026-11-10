@@ -48,6 +48,10 @@
       <section class="stage">
         <div class="stage-inner" id="stage">
           <canvas id="preview"></canvas>
+          <button class="zoom-btn" id="zoomBtn" aria-label="拡大表示" title="拡大表示">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21M10.5 7.5v6M7.5 10.5h6"/></svg>
+          </button>
+          <div class="loupe" id="loupe" hidden></div>
           <div class="busy" id="busy" hidden>処理中…</div>
         </div>
         <p class="stage-meta" id="meta"></p>
@@ -93,12 +97,28 @@
 
         <details open data-tab="color">
           <summary>カラー</summary>
-          <div class="colors">
-            <label><input type="color" data-color="bg" /> 背景・フレーム</label>
-            <label><input type="color" data-color="text" /> メイン文字</label>
-            <label><input type="color" data-color="sub" /> サブ文字</label>
-            <label><input type="color" data-color="accent" /> アクセント</label>
+          <div class="color-targets" id="colorTargets" role="tablist" aria-label="変更する色">
+            <button data-target="bg"><i></i><span>背景</span></button>
+            <button data-target="text"><i></i><span>メイン文字</span></button>
+            <button data-target="sub"><i></i><span>サブ文字</span></button>
+            <button data-target="accent"><i></i><span>アクセント</span></button>
           </div>
+          <div class="color-editor">
+            <div class="ce-top">
+              <span class="ce-preview" id="cePreview"></span>
+              <input id="ceHex" type="text" maxlength="7" spellcheck="false" autocomplete="off" aria-label="カラーコード" />
+              <button class="ce-dropper" id="ceDropper" title="写真から色を取る">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14 7 3 3M5 19l1.5-.5L17 8l-1-1-10.5 10.5zM16.5 4.5a2.1 2.1 0 0 1 3 3L18 9l-3-3z"/></svg>
+                スポイト
+              </button>
+            </div>
+            <label class="ce-slider"><span>色相</span><input id="ceH" type="range" min="0" max="360" step="1" /></label>
+            <label class="ce-slider"><span>彩度</span><input id="ceS" type="range" min="0" max="100" step="1" /></label>
+            <label class="ce-slider"><span>明るさ</span><input id="ceL" type="range" min="0" max="100" step="1" /></label>
+          </div>
+          <div class="subhead">最近使った色</div>
+          <div class="swatches history" id="colorHistory"></div>
+          <div class="subhead">パレット</div>
           <div class="swatches" id="swatches"></div>
           <button id="resetColors" class="link">このレイアウトの初期色に戻す</button>
         </details>

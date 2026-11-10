@@ -12,6 +12,8 @@ import type { Colors, Corner, CornerItem, CreditPosition, ExifInfo, FontRole, Ph
 import { IS_NATIVE, nativeSave, nativeShare } from './native';
 import { FONT_CATALOG, fontInfo, type FontLang } from './fontcatalog';
 import { cleanFamily, importFont, isFontAvailable, loadUserFonts, removeFont, userFonts } from './fonts';
+import { hexToHsl, hslToHex, loadHistory, normalizeHex, pushHistory, rgbToHex } from './colorutil';
+import { openViewer } from './viewer';
 import { exportJson, loadPresets, parseImport, pickPresetData, samePreset, savePresets, type MyPreset } from './presets';
 
 // ---------- 状態 ----------
@@ -282,6 +284,7 @@ async function drawPreview() {
   cv.width = out.width;
   cv.height = out.height;
   cv.getContext('2d')!.drawImage(out, 0, 0);
+  requestAnimationFrame(placeZoomBtn);
   const lay = getLayout(settings.layoutId);
   $('#meta').textContent = `${p.id === 'sample' ? 'サンプル画像' : p.name}　${p.width}×${p.height}　${lay.name}${p.note ? `　(${p.note})` : ''}`;
 }
@@ -575,12 +578,7 @@ function buildStaticControls() {
     sw.appendChild(b);
   }
 
-  $$<HTMLInputElement>('[data-color]').forEach((inp) =>
-    inp.addEventListener('input', () => {
-      settings.colors[inp.dataset.color as keyof Colors] = inp.value;
-      update(false);
-    }),
-  );
+  bindColorEditor();
   $('#resetColors').addEventListener('click', () => {
     settings.colors = { ...getLayout(settings.layoutId).colors };
     update();
@@ -704,7 +702,11 @@ function buildStaticControls() {
   $('#saveZip').addEventListener('click', () => exportPhotos(photos, true));
   $('#saveAll').addEventListener('click', () => exportPhotos(photos, false));
 
-  window.addEventListener('resize', () => schedulePreview(150));
+  window.addEventListener('resize', () => {
+    schedulePreview(150);
+    placeZoomBtn();
+  });
+  $('#zoomBtn').addEventListener('click', openZoom);
 
   // スマホ用タブ
   document.body.dataset.tab = 'layout';
@@ -757,7 +759,7 @@ function buildStaticControls() {
 
 function renderControls() {
   $$('.preset[data-layout]').forEach((b) => b.classList.toggle('active', b.dataset.layout === settings.layoutId));
-  $$<HTMLInputElement>('[data-color]').forEach((inp) => (inp.value = settings.colors[inp.dataset.color as keyof Colors]));
+  syncColorEditor();
   $$<HTMLInputElement>('[data-show]').forEach((inp) => (inp.checked = settings.show[inp.dataset.show as keyof Settings['show']]));
   const set = (id: string, v: string | number) => (($('#' + id) as HTMLInputElement).value = String(v));
   const out = (id: string, v: string) => ($('#' + id + 'Out').textContent = v);
@@ -800,6 +802,231 @@ function update(thumbs = true) {
   markActivePreset();
   schedulePreview();
   if (thumbs) scheduleThumbs();
+}
+
+// ---------- UI：カラー（色の調整・スポイト・履歴） ----------
+
+let colorTarget: keyof Colors = 'bg';
+let colorHistory = loadHistory();
+let picking = false;
+/** スライダー操作中は値の丸めで色相が飛ばないよう、HSLを保持しておく */
+let hsl: [number, number, number] = [0, 0, 0];
+
+function setColor(hex: string, commit: boolean) {
+  settings.colors[colorTarget] = hex;
+  if (commit) {
+    colorHistory = pushHistory(colorHistory, hex);
+    renderHistory();
+  }
+  update(commit);
+}
+
+function sliderBg() {
+  const [h, s, l] = hsl;
+  $('#ceH').style.background = `linear-gradient(to right, ${[0, 60, 120, 180, 240, 300, 360].map((x) => hslToHex(x, Math.max(s, 60), 50)).join(',')})`;
+  $('#ceS').style.background = `linear-gradient(to right, ${hslToHex(h, 0, l)}, ${hslToHex(h, 100, l)})`;
+  $('#ceL').style.background = `linear-gradient(to right, #000, ${hslToHex(h, s, 50)}, #fff)`;
+}
+
+function syncColorEditor(keepHsl = false) {
+  const hex = settings.colors[colorTarget];
+  if (!keepHsl) hsl = hexToHsl(hex);
+  $$('#colorTargets [data-target]').forEach((b) => {
+    const k = b.dataset.target as keyof Colors;
+    b.classList.toggle('active', k === colorTarget);
+    b.setAttribute('aria-selected', String(k === colorTarget));
+    b.querySelector('i')!.style.background = settings.colors[k];
+  });
+  $('#cePreview').style.background = hex;
+  const hexInput = $<HTMLInputElement>('#ceHex');
+  if (document.activeElement !== hexInput) hexInput.value = hex;
+  $<HTMLInputElement>('#ceH').value = String(hsl[0]);
+  $<HTMLInputElement>('#ceS').value = String(hsl[1]);
+  $<HTMLInputElement>('#ceL').value = String(hsl[2]);
+  sliderBg();
+}
+
+function renderHistory() {
+  const box = $('#colorHistory');
+  box.innerHTML = '';
+  if (!colorHistory.length) {
+    box.innerHTML = '<span class="hint">スライダーやスポイトで選んだ色がここに並びます</span>';
+    return;
+  }
+  for (const c of colorHistory) {
+    const b = document.createElement('button');
+    b.className = 'swatch';
+    b.title = c;
+    b.style.background = c;
+    b.addEventListener('click', () => {
+      setColor(c, true);
+    });
+    box.appendChild(b);
+  }
+}
+
+function stopPicking() {
+  picking = false;
+  document.body.classList.remove('picking');
+  $('#loupe').hidden = true;
+  $('#ceDropper').classList.remove('active');
+}
+
+/** プレビュー上の位置の色を読む */
+function colorAt(e: PointerEvent): string | null {
+  const cv = $<HTMLCanvasElement>('#preview');
+  const r = cv.getBoundingClientRect();
+  const x = Math.floor(((e.clientX - r.left) / r.width) * cv.width);
+  const y = Math.floor(((e.clientY - r.top) / r.height) * cv.height);
+  if (x < 0 || y < 0 || x >= cv.width || y >= cv.height) return null;
+  const d = cv.getContext('2d')!.getImageData(x, y, 1, 1).data;
+  return rgbToHex(d[0], d[1], d[2]);
+}
+
+function showLoupe(e: PointerEvent, c: string | null) {
+  const lp = $('#loupe');
+  if (!c) {
+    lp.hidden = true;
+    return;
+  }
+  const st = $('#stage').getBoundingClientRect();
+  lp.hidden = false;
+  lp.style.background = c;
+  lp.textContent = c;
+  lp.style.color = isLightHex(c) ? '#111' : '#fff';
+  // 指で隠れないよう、触れている位置の少し上に表示
+  const above = e.pointerType === 'touch' ? 70 : 40;
+  lp.style.left = `${e.clientX - st.left}px`;
+  lp.style.top = `${e.clientY - st.top - above}px`;
+}
+
+function isLightHex(hex: string) {
+  const [, , l] = hexToHsl(hex);
+  return l > 60;
+}
+
+function bindColorEditor() {
+  $$('#colorTargets [data-target]').forEach((b) =>
+    b.addEventListener('click', () => {
+      colorTarget = b.dataset.target as keyof Colors;
+      syncColorEditor();
+    }),
+  );
+  const ids: [string, number][] = [['#ceH', 0], ['#ceS', 1], ['#ceL', 2]];
+  for (const [id, i] of ids) {
+    const el = $<HTMLInputElement>(id);
+    el.addEventListener('input', () => {
+      hsl[i] = Number(el.value);
+      // 無彩色のまま色相を動かしても色が変わらないので、色が見えるところまで彩度を上げる
+      if (i === 0 && hsl[1] < 8) {
+        hsl[1] = 60;
+        if (hsl[2] < 15 || hsl[2] > 85) hsl[2] = 50;
+      }
+      const hex = hslToHex(...hsl);
+      settings.colors[colorTarget] = hex;
+      saveSettings();
+      markActivePreset();
+      syncColorEditor(true);
+      schedulePreview();
+    });
+    el.addEventListener('change', () => setColor(settings.colors[colorTarget], true));
+  }
+  const hexInput = $<HTMLInputElement>('#ceHex');
+  const commitHex = () => {
+    const h = normalizeHex(hexInput.value);
+    if (h) setColor(h, true);
+    else hexInput.value = settings.colors[colorTarget];
+  };
+  hexInput.addEventListener('change', commitHex);
+  hexInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      commitHex();
+      hexInput.blur();
+    }
+  });
+
+  // スポイト：プレビューをタップ（クリック）して色を取る。なぞるとルーペで確認できる
+  $('#ceDropper').addEventListener('click', () => {
+    if (picking) return stopPicking();
+    picking = true;
+    document.body.classList.add('picking');
+    $('#ceDropper').classList.add('active');
+    toast('写真（プレビュー）をタップして色を選んでください', 3000);
+  });
+  const cv = $<HTMLCanvasElement>('#preview');
+  let down = false;
+  cv.addEventListener('pointerdown', (e) => {
+    if (!picking) return;
+    e.preventDefault();
+    down = true;
+    cv.setPointerCapture(e.pointerId);
+    showLoupe(e, colorAt(e));
+  });
+  cv.addEventListener('pointermove', (e) => {
+    if (!picking) return;
+    if (e.pointerType === 'touch' && !down) return;
+    showLoupe(e, colorAt(e));
+  });
+  cv.addEventListener('pointerup', (e) => {
+    if (!picking || !down) return;
+    down = false;
+    const c = colorAt(e);
+    stopPicking();
+    if (c) {
+      setColor(c, true);
+      syncColorEditor();
+      toast(`${c} を設定しました`, 2000);
+    }
+  });
+  cv.addEventListener('pointerleave', () => {
+    if (picking && !down) $('#loupe').hidden = true;
+  });
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && picking) stopPicking();
+  });
+  renderHistory();
+}
+
+// ---------- 拡大表示 ----------
+
+/** 拡大ボタンをプレビューのすぐ右下に置く（余白が無ければ枠の内側） */
+function placeZoomBtn() {
+  const btn = $('#zoomBtn');
+  const st = $('#stage').getBoundingClientRect();
+  const r = $('#preview').getBoundingClientRect();
+  if (!r.width) return;
+  const size = btn.offsetWidth || 40;
+  const gap = 6;
+  const T = r.top - st.top, R = r.right - st.left, B = r.bottom - st.top;
+  let left: number, top: number;
+  if (st.width - R >= size + gap + 2) {
+    left = R + gap; // 右隣
+    top = B - size;
+  } else if (st.height - B >= size + gap + 2) {
+    left = R - size; // 下隣（右寄せ）
+    top = B + gap;
+  } else if (T >= size + gap + 2) {
+    left = R - size; // 上隣
+    top = T - size - gap;
+  } else {
+    left = R - size - 8; // 余白が無い→写真の右上（文字の入るフチを避ける）
+    top = T + 8;
+  }
+  btn.style.left = `${left}px`;
+  btn.style.top = `${top}px`;
+}
+
+async function openZoom() {
+  if (picking) return;
+  setBusy(true);
+  try {
+    const out = await renderPreview(current(), settings, IS_MOBILE ? 2400 : 4000);
+    openViewer(out);
+  } catch (e) {
+    toast('拡大表示できませんでした: ' + (e as Error).message);
+  } finally {
+    setBusy(false);
+  }
 }
 
 // ---------- UI：フォント ----------
