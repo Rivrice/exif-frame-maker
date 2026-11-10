@@ -361,7 +361,7 @@ function applyPreset(mp: MyPreset) {
 }
 
 function askName(def: string): string | null {
-  const v = prompt('プリセットの名前', def);
+  const v = prompt('レイアウトの名前', def);
   if (v === null) return null;
   const name = v.trim().slice(0, 40);
   return name || def;
@@ -428,8 +428,8 @@ function bindMyPresets() {
     if (e.target === e.currentTarget) closeMpSheet();
   });
   $('#mpExport').addEventListener('click', async () => {
-    if (!myPresets.length) return toast('保存したプリセットがありません');
-    const file = new File([exportJson(myPresets)], `exif-frame-presets_${new Date().toISOString().slice(0, 10)}.json`, {
+    if (!myPresets.length) return toast('保存したマイレイアウトがありません');
+    const file = new File([exportJson(myPresets)], `exif-frame-layouts_${new Date().toISOString().slice(0, 10)}.json`, {
       type: 'application/json',
     });
     await deliver([file], false);
@@ -441,7 +441,7 @@ function bindMyPresets() {
     if (!f) return;
     try {
       const list = parseImport(await f.text());
-      if (!list.length) return toast('読み込めるプリセットがありませんでした');
+      if (!list.length) return toast('読み込めるレイアウトがありませんでした');
       const ids = new Set(myPresets.map((p) => p.id));
       let added = 0;
       for (const p of list) {
@@ -454,7 +454,7 @@ function bindMyPresets() {
       persistPresets();
       renderMyPresets();
       scheduleThumbs(0);
-      toast(added ? `${added}件のプリセットを読み込みました` : 'すべて読み込み済みのプリセットでした');
+      toast(added ? `${added}件のレイアウトを読み込みました` : 'すべて読み込み済みのレイアウトでした');
     } catch (err) {
       toast('読み込めませんでした: ' + (err as Error).message);
     }
@@ -550,14 +550,15 @@ function buildStaticControls() {
     });
     presets.appendChild(b);
   }
-  // レイアウト一覧の最後に「＋」の枠：＋で今の設定をマイプリセットに保存、「読込」でファイルから読み込み
+  // レイアウト一覧の最後に「＋」の枠：今の設定をマイレイアウトに保存
   const add = document.createElement('div');
   add.className = 'preset mp-add';
   add.innerHTML =
-    '<button class="mp-add-plus" title="今の設定をマイプリセットに保存" aria-label="今の設定をマイプリセットに保存"><b>＋</b></button>' +
-    '<button class="mp-add-label" title="マイプリセットのファイルを読み込む">読込</button>';
+    '<button class="mp-add-plus" title="今の設定をマイレイアウトに保存" aria-label="今の設定をマイレイアウトに保存"><b>＋</b></button>' +
+    '<button class="mp-add-label" title="今の設定をマイレイアウトに保存">レイアウト<wbr>を保存</button>';
   add.querySelector('.mp-add-plus')!.addEventListener('click', savePresetFromCurrent);
-  add.querySelector('.mp-add-label')!.addEventListener('click', () => $<HTMLInputElement>('#mpImport').click());
+  add.querySelector('.mp-add-label')!.addEventListener('click', savePresetFromCurrent);
+  $('#mpImportLink').addEventListener('click', () => $<HTMLInputElement>('#mpImport').click());
   presets.appendChild(add);
 
   // パレット

@@ -55,7 +55,7 @@
 
       <aside class="panel right">
         <details open data-tab="layout" id="myPresetPanel" hidden>
-          <summary>マイプリセット</summary>
+          <summary>マイレイアウト</summary>
           <div class="my-presets" id="myPresets"></div>
           <input type="file" id="mpImport" accept="application/json,.json" hidden />
         </details>
@@ -230,8 +230,9 @@
             </select>
           </div>
           <div class="mp-export">
-            <button id="mpExport">フレームプリセットを保存</button>
-            <p class="hint">保存したマイプリセットをファイル（JSON）にまとめます。バックアップや別の端末への移行に使えます。読み込みはレイアウト一覧の最後にある「＋」の枠の「読込」から。</p>
+            <button id="mpExport">レイアウトをシェア</button>
+            <p class="hint">マイレイアウトをファイル（JSON）にまとめて、友だちとの共有・バックアップ・別の端末への移行に使えます。</p>
+            <button class="link mp-import-link" id="mpImportLink">シェアされたレイアウトを読込</button>
           </div>
         </details>
       </aside>

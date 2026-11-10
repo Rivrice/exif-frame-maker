@@ -78,6 +78,6 @@ export function exportJson(list: MyPreset[]): string {
 export function parseImport(text: string): MyPreset[] {
   const v = JSON.parse(text);
   const arr = Array.isArray(v) ? v : v?.format === FILE_FORMAT ? v.presets : null;
-  if (!Array.isArray(arr)) throw new Error('プリセットのファイルではありません');
+  if (!Array.isArray(arr)) throw new Error('マイレイアウトのファイルではありません');
   return arr.filter(isPreset).map((p) => ({ ...p, name: String(p.name).slice(0, 40) }));
 }

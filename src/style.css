@@ -367,7 +367,7 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .preset.mp-add { cursor: default; }
 .mp-add-plus { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border: 0; background: none; color: var(--accent); cursor: pointer; padding: 0; }
 .mp-add-plus b { font-size: 34px; font-weight: 400; line-height: 1; }
-.mp-add-label { border: 0; background: none; color: var(--accent); font-weight: 700; font-size: 12px; cursor: pointer; padding: 2px 0; text-decoration: underline; text-underline-offset: 2px; }
+.mp-add-label { border: 0; background: none; color: var(--accent); font-weight: 700; font-size: 11px; line-height: 1.25; cursor: pointer; padding: 2px 0; word-break: keep-all; overflow-wrap: normal; text-decoration: underline; text-underline-offset: 2px; }
 .my-actions { justify-content: flex-start; }
 .mp-export { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
 .mp-export button { width: 100%; padding: 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); cursor: pointer; font-weight: 600; color: inherit; }
@@ -406,3 +406,6 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .seg3 button:first-child { border-left: 0; }
 .seg3 button.active { background: var(--text); color: var(--panel); }
 @media (max-width: 900px) { .seg3 button { min-height: 40px; font-size: 13px; } }
+
+.mp-import-link { display: block; margin-top: 8px; cursor: pointer; }
+@media (max-width: 900px) { .mp-import-link { font-size: 14px; padding: 6px 0; } }
