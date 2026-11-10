@@ -106,11 +106,40 @@ function build() {
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && el && !el.hidden) closeViewer();
   });
-  window.addEventListener('resize', () => el && !el.hidden && reset());
+  // スマホのアドレスバーの出し入れでも resize が来るので、拡大中は位置を保つ
+  window.addEventListener('resize', () => {
+    if (!el || el.hidden) return;
+    const wasFit = Math.abs(scale - fit) < 1e-6;
+    const W = el.clientWidth, H = el.clientHeight;
+    const nextFit = Math.min((W - 24) / cv.width, (H - 24) / cv.height, 1);
+    if (wasFit) reset();
+    else fit = nextFit;
+  });
 }
+
+export function isViewerOpen() {
+  return !!el && !el.hidden;
+}
+
+/** ブラウザの「戻る」（スマホの戻るジェスチャー）で閉じられるよう履歴を1つ積む */
+let pushed = false;
+window.addEventListener('popstate', () => {
+  if (pushed) {
+    pushed = false;
+    hide();
+  }
+});
 
 export function openViewer(src: HTMLCanvasElement) {
   if (!el) build();
+  if (!pushed && !isViewerOpen()) {
+    try {
+      history.pushState({ viewer: true }, '');
+      pushed = true;
+    } catch {
+      /* noop */
+    }
+  }
   cv.width = src.width;
   cv.height = src.height;
   cv.getContext('2d')!.drawImage(src, 0, 0);
@@ -120,6 +149,14 @@ export function openViewer(src: HTMLCanvasElement) {
 }
 
 export function closeViewer() {
+  if (pushed) {
+    pushed = false;
+    history.back();
+  }
+  hide();
+}
+
+function hide() {
   if (!el) return;
   el.hidden = true;
   document.body.classList.remove('viewing');

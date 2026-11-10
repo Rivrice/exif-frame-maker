@@ -9,11 +9,11 @@ import { getLogo, logoOrigin, removeUserLogo, setUserLogo } from './logos';
 import { MAKERS } from './makers';
 import { IS_IOS, canvasToBlob, preloadFonts, renderOutput, renderPreview } from './render';
 import type { Colors, Corner, CornerItem, CreditPosition, ExifInfo, FontRole, PhotoItem, Settings } from './types';
-import { IS_NATIVE, nativeSave, nativeShare } from './native';
+import { IS_NATIVE, nativeSave, nativeShare, onBackButton } from './native';
 import { FONT_CATALOG, fontInfo, type FontLang } from './fontcatalog';
 import { cleanFamily, importFont, isFontAvailable, loadUserFonts, removeFont, userFonts } from './fonts';
 import { hexToHsl, hslToHex, loadHistory, normalizeHex, pushHistory, rgbToHex } from './colorutil';
-import { openViewer } from './viewer';
+import { closeViewer, isViewerOpen, openViewer } from './viewer';
 import { exportJson, loadPresets, parseImport, pickPresetData, samePreset, savePresets, type MyPreset } from './presets';
 
 // ---------- 状態 ----------
@@ -711,11 +711,29 @@ function buildStaticControls() {
     placeZoomBtn();
   });
   $('#zoomBtn').addEventListener('click', openZoom);
+  // Androidアプリの「戻る」：開いている画面を閉じる。何も開いていなければアプリを終了
+  onBackButton(() => {
+    if (isViewerOpen()) return closeViewer(), true;
+    if (picking) return stopPicking(), true;
+    for (const id of ['#shareSheet', '#aboutSheet', '#mpSheet']) {
+      if (!$(id).hidden) {
+        if (id === '#shareSheet') closeShare();
+        else if (id === '#mpSheet') closeMpSheet();
+        else $(id).hidden = true;
+        return true;
+      }
+    }
+    return false;
+  });
 
   // スマホ用タブ
   document.body.dataset.tab = 'layout';
   $$('#tabbar [data-tab]').forEach((b) =>
     b.addEventListener('click', () => {
+      if (b.dataset.tab !== 'color') {
+        stopPicking();
+        commitHistory();
+      }
       document.body.dataset.tab = b.dataset.tab!;
       $$('#tabbar [data-tab]').forEach((x) => x.classList.toggle('active', x === b));
       $('.panel.right').scrollTop = 0;
@@ -816,13 +834,21 @@ let picking = false;
 /** スライダー操作中は値の丸めで色相が飛ばないよう、HSLを保持しておく */
 let hsl: [number, number, number] = [0, 0, 0];
 
+/** カスタムカラーで最後に決めた色（別の項目に切り替えたときに「最近使った色」へ記録する） */
+let lastCustom: string | null = null;
+
 function setColor(hex: string, commit: boolean) {
   settings.colors[colorTarget] = hex;
-  if (commit) {
-    colorHistory = pushHistory(colorHistory, hex);
-    renderHistory();
-  }
+  lastCustom = hex;
   update(commit);
+}
+
+/** 調整中の色を「最近使った色」に記録する（項目の切り替え・タブの移動・スイッチオフ・アプリを離れるとき） */
+function commitHistory() {
+  if (!lastCustom) return;
+  colorHistory = pushHistory(colorHistory, lastCustom);
+  lastCustom = null;
+  renderHistory();
 }
 
 function sliderBg() {
@@ -854,7 +880,7 @@ function renderHistory() {
   const box = $('#colorHistory');
   box.innerHTML = '';
   if (!colorHistory.length) {
-    box.innerHTML = '<span class="hint">スライダーやスポイトで選んだ色がここに並びます</span>';
+    box.innerHTML = '<span class="hint">色を調整して別の項目（背景・文字など）に切り替えると、ここに追加されます</span>';
     return;
   }
   for (const c of colorHistory) {
@@ -912,7 +938,9 @@ function isLightHex(hex: string) {
 function bindColorEditor() {
   $$('#colorTargets [data-target]').forEach((b) =>
     b.addEventListener('click', () => {
-      colorTarget = b.dataset.target as keyof Colors;
+      const next = b.dataset.target as keyof Colors;
+      if (next !== colorTarget) commitHistory();
+      colorTarget = next;
       syncColorEditor();
     }),
   );
@@ -928,6 +956,7 @@ function bindColorEditor() {
       }
       const hex = hslToHex(...hsl);
       settings.colors[colorTarget] = hex;
+      lastCustom = hex;
       saveSettings();
       markActivePreset();
       syncColorEditor(true);
@@ -975,8 +1004,13 @@ function bindColorEditor() {
     if (!picking || !down) return;
     down = false;
     const c = colorAt(e);
+    if (!c) {
+      // 写真の外で指を離したときは、スポイトを続ける
+      $('#loupe').hidden = true;
+      return;
+    }
     stopPicking();
-    if (c) {
+    {
       setColor(c, true);
       syncColorEditor();
       toast(`${c} を設定しました`, 2000);
@@ -985,9 +1019,18 @@ function bindColorEditor() {
   cv.addEventListener('pointerleave', () => {
     if (picking && !down) $('#loupe').hidden = true;
   });
+  cv.addEventListener('pointercancel', () => {
+    down = false;
+    $('#loupe').hidden = true;
+  });
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && picking) stopPicking();
   });
+  // アプリを閉じる・切り替えるときも記録しておく
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') commitHistory();
+  });
+  window.addEventListener('pagehide', commitHistory);
   renderHistory();
 }
 
@@ -997,7 +1040,10 @@ function bindCustomColor() {
   const cb = $<HTMLInputElement>('#customColor');
   const apply = () => {
     $('#customPanel').hidden = !cb.checked;
-    if (!cb.checked) stopPicking();
+    if (!cb.checked) {
+      stopPicking();
+      commitHistory();
+    }
   };
   try {
     cb.checked = localStorage.getItem(CUSTOM_KEY) === '1';
@@ -1081,6 +1127,7 @@ function placeZoomBtn() {
 
 async function openZoom() {
   if (picking) return;
+  if (busy) return toast('処理中です。終わってからもう一度お試しください');
   setBusy(true);
   try {
     const out = await renderPreview(current(), settings, IS_MOBILE ? 2400 : 4000);

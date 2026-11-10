@@ -4,6 +4,15 @@ import { Capacitor, registerPlugin } from '@capacitor/core';
 
 export const IS_NATIVE = Capacitor.isNativePlatform();
 
+/** Androidの「戻る」ボタン。handler が true を返したら処理済み、false ならアプリを終了 */
+export async function onBackButton(handler: () => boolean) {
+  if (!IS_NATIVE) return;
+  const { App } = await import('@capacitor/app');
+  await App.addListener('backButton', () => {
+    if (!handler()) void App.exitApp();
+  });
+}
+
 interface HeicConverterPlugin {
   toJpeg(opts: { data: string; maxPixels: number }): Promise<{ data: string; width: number; height: number }>;
 }
