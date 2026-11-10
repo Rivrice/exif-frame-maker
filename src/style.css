@@ -400,3 +400,9 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .font-roles .field { flex-direction: row; align-items: center; gap: 10px; margin: 4px 0; }
 .font-roles .field > span { flex: 0 0 5.5em; }
 .font-roles .field select { flex: 1; min-width: 0; }
+
+.seg3 { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg3 button { border: 0; border-left: 1px solid var(--line); background: var(--bg); color: inherit; padding: 6px 0; font: inherit; font-size: 12px; cursor: pointer; }
+.seg3 button:first-child { border-left: 0; }
+.seg3 button.active { background: var(--text); color: var(--panel); }
+@media (max-width: 900px) { .seg3 button { min-height: 40px; font-size: 13px; } }

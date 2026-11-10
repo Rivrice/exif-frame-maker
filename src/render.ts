@@ -18,17 +18,30 @@ export async function preloadFonts() {
 }
 
 const NON_LATIN = /[^\u0000-ɏ -⁯·α]/;
-const loadedText = new Set<string>();
+const requested = new Set<string>();
 
-/** 日本語など、まだ読み込んでいない文字のフォントを読み込む */
-async function ensureGlyphs(texts: string[]) {
-  const t = texts.join('');
-  if (!NON_LATIN.test(t)) return;
-  const chars = [...new Set(t)].filter((c) => !loadedText.has(c)).join('');
-  if (!chars) return;
-  await Promise.allSettled([400, 500, 700].map((w) => document.fonts.load(`${w} 32px "Noto Sans JP"`, chars)));
-  for (const c of chars) loadedText.add(c);
+/**
+ * 描画に使うフォントを、使う文字の分だけ読み込む（日本語フォントは文字ごとに分割されているため）。
+ * 内蔵フォントが増えても、選んでいないフォントはダウンロードしない。
+ */
+async function ensureFonts(families: string[], texts: string[], italic: string[] = []) {
+  const t = texts.join('') + 'Aa0© ';
+  const chars = [...new Set(t)].join('');
+  const fams = new Set(families.filter(Boolean));
+  if (NON_LATIN.test(t)) fams.add('Noto Sans JP'); // 日本語の代替表示用
+  const jobs: Promise<unknown>[] = [];
+  const req = (font: string) => {
+    const key = font + '|' + chars;
+    if (requested.has(key)) return;
+    requested.add(key);
+    jobs.push(document.fonts.load(font, chars));
+  };
+  for (const f of fams) for (const w of [400, 700]) req(`${w} 32px "${f}"`);
+  for (const f of italic) for (const w of [400, 800]) req(`italic ${w} 32px "${f}"`);
+  if (jobs.length) await Promise.allSettled(jobs);
 }
+
+const upperAscii = (s: string) => s.replace(/[a-z]/g, (c) => c.toUpperCase());
 
 export const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const IS_ANDROID = /Android/i.test(navigator.userAgent);
@@ -38,7 +51,13 @@ const MAX_SIDE = IS_IOS || IS_ANDROID ? 16_384 : 32_000;
 
 async function context(p: PhotoItem, s: Settings): Promise<RC> {
   const info = buildInfo(p, s);
-  await ensureGlyphs([info.model, info.lens, info.date, info.artist, ...info.params, info.maker?.display ?? '']);
+  const layoutFont = getLayout(s.layoutId).font;
+  const m = info.maker;
+  await ensureFonts(
+    [layoutFont, s.font, ...Object.values(s.fonts ?? {}), s.makerStyle !== false ? m?.font ?? '' : ''],
+    [info.model, info.lens, info.date, info.artist, ...info.params, m?.display ?? '', upperAscii(m?.display ?? '')],
+    s.makerStyle !== false && m?.italic && m.font ? [m.font] : [],
+  );
   const logo = s.show.logo && info.maker ? await getLogo(info.maker.key) : null;
   return { info, s, logo, font: getLayout(s.layoutId).font };
 }

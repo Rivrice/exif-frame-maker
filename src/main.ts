@@ -1,30 +1,4 @@
-import '@fontsource/inter/400.css';
-import '@fontsource/inter/500.css';
-import '@fontsource/inter/600.css';
-import '@fontsource/inter/700.css';
-import '@fontsource/inter/800.css';
-import '@fontsource/inter/400-italic.css';
-import '@fontsource/inter/800-italic.css';
-import '@fontsource/montserrat/400.css';
-import '@fontsource/montserrat/500.css';
-import '@fontsource/montserrat/600.css';
-import '@fontsource/montserrat/700.css';
-import '@fontsource/montserrat/800.css';
-import '@fontsource/montserrat/900.css';
-import '@fontsource/playfair-display/400.css';
-import '@fontsource/playfair-display/700.css';
-import '@fontsource/playfair-display/800.css';
-import '@fontsource/cormorant-garamond/500.css';
-import '@fontsource/cormorant-garamond/600.css';
-import '@fontsource/cormorant-garamond/700.css';
-import '@fontsource/cormorant-garamond/700-italic.css';
-import '@fontsource/oswald/400.css';
-import '@fontsource/oswald/500.css';
-import '@fontsource/jetbrains-mono/400.css';
-import '@fontsource/jetbrains-mono/700.css';
-import '@fontsource/noto-sans-jp/400.css';
-import '@fontsource/noto-sans-jp/500.css';
-import '@fontsource/noto-sans-jp/700.css';
+import './fontcatalog';
 import './style.css';
 
 import { zipSync } from 'fflate';
@@ -36,7 +10,8 @@ import { MAKERS } from './makers';
 import { IS_IOS, canvasToBlob, preloadFonts, renderOutput, renderPreview } from './render';
 import type { Colors, Corner, CornerItem, CreditPosition, ExifInfo, FontRole, PhotoItem, Settings } from './types';
 import { IS_NATIVE, nativeSave, nativeShare } from './native';
-import { BUILTIN_FONTS, cleanFamily, importFont, isFontAvailable, loadUserFonts, removeFont, userFonts } from './fonts';
+import { FONT_CATALOG, fontInfo, type FontLang } from './fontcatalog';
+import { cleanFamily, importFont, isFontAvailable, loadUserFonts, removeFont, userFonts } from './fonts';
 import { exportJson, loadPresets, parseImport, pickPresetData, samePreset, savePresets, type MyPreset } from './presets';
 
 // ---------- 状態 ----------
@@ -842,10 +817,20 @@ function fontOptions(sel: HTMLSelectElement, value: string, emptyLabel: string) 
     parent.appendChild(o);
   };
   add(sel, '', emptyLabel);
-  const g1 = document.createElement('optgroup');
-  g1.label = '内蔵フォント';
-  for (const f of BUILTIN_FONTS) add(g1, f, f);
-  sel.appendChild(g1);
+  const groups: [FontLang, string][] = [
+    ['ja', '日本語対応（かな・漢字も表示）'],
+    ['latin', '欧文のみ（英数字。日本語は代替フォント）'],
+  ];
+  for (const [lang, label] of groups) {
+    if (fontLang !== 'all' && fontLang !== lang) continue;
+    const g = document.createElement('optgroup');
+    g.label = label;
+    for (const f of FONT_CATALOG.filter((x) => x.lang === lang)) add(g, f.family, `${f.label}（${f.kind}）`);
+    sel.appendChild(g);
+  }
+  // 絞り込みで隠れたフォントが選ばれている場合も、選択状態を保つ
+  const cur = fontInfo(value);
+  if (cur && fontLang !== 'all' && cur.lang !== fontLang) add(sel, cur.family, `${cur.label}（${cur.kind}）`);
   const mine = userFonts();
   if (mine.length) {
     const g2 = document.createElement('optgroup');
@@ -858,7 +843,19 @@ function fontOptions(sel: HTMLSelectElement, value: string, emptyLabel: string) 
   sel.value = value;
 }
 
+// フォント一覧の絞り込み（端末ごとの表示設定）
+type LangFilter = 'all' | FontLang;
+let fontLang: LangFilter = (() => {
+  try {
+    const v = localStorage.getItem('exif-frame-maker:font-lang');
+    return v === 'ja' || v === 'latin' ? v : 'all';
+  } catch {
+    return 'all';
+  }
+})();
+
 function fillFontSelects() {
+  $$('#fontLang [data-lang]').forEach((b) => b.classList.toggle('active', b.dataset.lang === fontLang));
   fontOptions($<HTMLSelectElement>('#font'), settings.font, 'レイアウト既定');
   $$<HTMLSelectElement>('[data-font-role]').forEach((sel) => {
     const role = sel.dataset.fontRole as FontRole;
@@ -900,6 +897,17 @@ function bindFonts() {
     sel.addEventListener('change', () => {
       settings.fonts[sel.dataset.fontRole as FontRole] = sel.value;
       update();
+    }),
+  );
+  $$('#fontLang [data-lang]').forEach((b) =>
+    b.addEventListener('click', () => {
+      fontLang = b.dataset.lang as LangFilter;
+      try {
+        localStorage.setItem('exif-frame-maker:font-lang', fontLang);
+      } catch {
+        /* noop */
+      }
+      fillFontSelects();
     }),
   );
   const adv = $<HTMLButtonElement>('#advToggle');

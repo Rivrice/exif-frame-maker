@@ -1,7 +1,9 @@
 // 利用者が読み込んだフォント（TTF / OTF / WOFF / WOFF2）の管理。
 // フォントファイルはこの端末の IndexedDB にだけ保存し、外部には送信しない。
 
-export const BUILTIN_FONTS = ['Inter', 'Montserrat', 'Playfair Display', 'Cormorant Garamond', 'Oswald', 'JetBrains Mono', 'Noto Sans JP'];
+import { BUILTIN_FONTS } from './fontcatalog';
+
+export { BUILTIN_FONTS };
 
 const DB = 'exif-frame-fonts';
 const STORE = 'fonts';

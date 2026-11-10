@@ -111,6 +111,14 @@
         <details open data-tab="text">
           <summary>文字</summary>
           <div class="field">
+            <span>フォントの種類</span>
+            <div class="seg3" id="fontLang" role="radiogroup" aria-label="フォントの言語で絞り込み">
+              <button data-lang="all">すべて</button>
+              <button data-lang="ja">日本語対応</button>
+              <button data-lang="latin">欧文のみ</button>
+            </div>
+          </div>
+          <div class="field">
             <span>フォント<label class="mini-link">＋読込<input type="file" data-font-import="global" hidden /></label></span>
             <select id="font" data-font-select="global"></select>
           </div>
