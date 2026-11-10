@@ -1104,7 +1104,7 @@ function placeZoomBtn() {
   const st = $('#stage').getBoundingClientRect();
   const r = $('#preview').getBoundingClientRect();
   if (!r.width) return;
-  const size = btn.offsetWidth || 38;
+  const size = btn.offsetWidth || 32;
   const gap = 6;
   const T = r.top - st.top, R = r.right - st.left, B = r.bottom - st.top;
   let left: number, top: number;
