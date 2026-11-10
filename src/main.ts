@@ -100,6 +100,7 @@ function loadSettings(): Settings {
 
 let settings = loadSettings();
 const photos: PhotoItem[] = [];
+let refreshStripToggle = () => {};
 let selectedId = '';
 let sample: PhotoItem | null = null;
 
@@ -480,6 +481,7 @@ function renderList() {
   const ul = $('#list');
   ul.innerHTML = '';
   $('#count').textContent = `${photos.length}枚`;
+  refreshStripToggle();
   for (const p of photos) {
     const li = document.createElement('li');
     li.className = p.id === selectedId ? 'active' : '';
@@ -579,6 +581,8 @@ function buildStaticControls() {
   }
 
   bindColorEditor();
+  bindCustomColor();
+  bindStripToggle();
   $('#resetColors').addEventListener('click', () => {
     settings.colors = { ...getLayout(settings.layoutId).colors };
     update();
@@ -987,6 +991,65 @@ function bindColorEditor() {
   renderHistory();
 }
 
+// カスタムカラー：オンにしたときだけ色調整パネルを開く（端末ごとの表示設定）
+const CUSTOM_KEY = 'exif-frame-maker:custom-color';
+function bindCustomColor() {
+  const cb = $<HTMLInputElement>('#customColor');
+  const apply = () => {
+    $('#customPanel').hidden = !cb.checked;
+    if (!cb.checked) stopPicking();
+  };
+  try {
+    cb.checked = localStorage.getItem(CUSTOM_KEY) === '1';
+  } catch {
+    /* noop */
+  }
+  apply();
+  cb.addEventListener('change', () => {
+    apply();
+    try {
+      localStorage.setItem(CUSTOM_KEY, cb.checked ? '1' : '0');
+    } catch {
+      /* noop */
+    }
+    if (cb.checked) $('#customPanel').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  });
+}
+
+// スマホ：写真の一覧（写真を追加）を隠してプレビューを広く
+const STRIP_KEY = 'exif-frame-maker:strip-hidden';
+function bindStripToggle() {
+  const btn = $<HTMLButtonElement>('#stripToggle');
+  const set = (hidden: boolean, save: boolean) => {
+    document.body.classList.toggle('strip-hidden', hidden);
+    btn.setAttribute('aria-expanded', String(!hidden));
+    btn.setAttribute('aria-label', hidden ? '写真の一覧を表示' : '写真の一覧を隠す');
+    const n = photos.length;
+    btn.innerHTML = hidden
+      ? `<span>写真${n ? `（${n}枚）` : ''}を表示</span><b>⌃</b>`
+      : '<b>⌄</b><span>隠す</span>';
+    if (save) {
+      try {
+        localStorage.setItem(STRIP_KEY, hidden ? '1' : '0');
+      } catch {
+        /* noop */
+      }
+      schedulePreview(0);
+    }
+  };
+  let hidden = false;
+  try {
+    hidden = localStorage.getItem(STRIP_KEY) === '1';
+  } catch {
+    /* noop */
+  }
+  set(hidden, false);
+  btn.addEventListener('click', () => {
+    hidden = !hidden;
+    set(hidden, true);
+  });
+  refreshStripToggle = () => set(hidden, false);
+}
 // ---------- 拡大表示 ----------
 
 /** 拡大ボタンをプレビューのすぐ右下に置く（余白が無ければ枠の内側） */

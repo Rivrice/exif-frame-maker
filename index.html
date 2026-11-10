@@ -40,6 +40,7 @@
         </div>
         <ul id="list" class="photo-list"></ul>
         <label for="file" class="add-tile" aria-label="写真を追加"><span>＋</span>写真を追加</label>
+        <button class="strip-toggle" id="stripToggle" aria-expanded="true" aria-label="写真の一覧を隠す"></button>
         <p class="disclaimer">
           非公式アプリです。各メーカーとは関係ありません。メーカー名・機種名は各社の商標です。写真は端末の外に送信されません。
         </p>
@@ -97,6 +98,11 @@
 
         <details open data-tab="color">
           <summary>カラー</summary>
+          <div class="subhead first">パレット</div>
+          <div class="swatches" id="swatches"></div>
+          <button id="resetColors" class="link">このレイアウトの初期色に戻す</button>
+          <label class="switch custom-switch"><input type="checkbox" id="customColor" aria-controls="customPanel" /><span>カスタムカラーを使用</span></label>
+          <div class="custom-panel" id="customPanel" hidden>
           <div class="color-targets" id="colorTargets" role="tablist" aria-label="変更する色">
             <button data-target="bg"><i></i><span>背景</span></button>
             <button data-target="text"><i></i><span>メイン文字</span></button>
@@ -118,9 +124,7 @@
           </div>
           <div class="subhead">最近使った色</div>
           <div class="swatches history" id="colorHistory"></div>
-          <div class="subhead">パレット</div>
-          <div class="swatches" id="swatches"></div>
-          <button id="resetColors" class="link">このレイアウトの初期色に戻す</button>
+          </div>
         </details>
 
         <details open data-tab="text">
