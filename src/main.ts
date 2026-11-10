@@ -115,9 +115,19 @@ function saveSettings() {
 const $ = <T extends HTMLElement = HTMLElement>(sel: string) => document.querySelector(sel) as T;
 const $$ = <T extends HTMLElement = HTMLElement>(sel: string) => [...document.querySelectorAll(sel)] as T[];
 
-function toast(msg: string, ms = 3500) {
+function toast(msg: string, ms = 3500, action?: { label: string; run: () => void }) {
   const t = $('#toast');
   t.textContent = msg;
+  t.classList.toggle('has-action', !!action);
+  if (action) {
+    const b = document.createElement('button');
+    b.textContent = action.label;
+    b.addEventListener('click', () => {
+      t.hidden = true;
+      action.run();
+    });
+    t.appendChild(b);
+  }
   t.hidden = false;
   clearTimeout((t as any)._timer);
   (t as any)._timer = setTimeout(() => (t.hidden = true), ms);
@@ -583,6 +593,7 @@ function buildStaticControls() {
   bindColorEditor();
   bindCustomColor();
   bindStripToggle();
+  bindResetText();
   $('#resetColors').addEventListener('click', () => {
     settings.colors = { ...getLayout(settings.layoutId).colors };
     update();
@@ -715,7 +726,7 @@ function buildStaticControls() {
   onBackButton(() => {
     if (isViewerOpen()) return closeViewer(), true;
     if (picking) return stopPicking(), true;
-    for (const id of ['#shareSheet', '#aboutSheet', '#mpSheet']) {
+    for (const id of ['#shareSheet', '#aboutSheet', '#mpSheet', '#resetSheet']) {
       if (!$(id).hidden) {
         if (id === '#shareSheet') closeShare();
         else if (id === '#mpSheet') closeMpSheet();
@@ -782,6 +793,7 @@ function buildStaticControls() {
 function renderControls() {
   $$('.preset[data-layout]').forEach((b) => b.classList.toggle('active', b.dataset.layout === settings.layoutId));
   syncColorEditor();
+  syncResetText();
   $$<HTMLInputElement>('[data-show]').forEach((inp) => (inp.checked = settings.show[inp.dataset.show as keyof Settings['show']]));
   const set = (id: string, v: string | number) => (($('#' + id) as HTMLInputElement).value = String(v));
   const out = (id: string, v: string) => ($('#' + id + 'Out').textContent = v);
@@ -1143,6 +1155,55 @@ function bindStripToggle() {
   });
   refreshStripToggle = () => set(hidden, false);
 }
+// ---------- 文字の設定を初期設定に戻す ----------
+
+type TextPart = Pick<Settings, 'show' | 'font' | 'fonts' | 'textScale' | 'makerStyle' | 'credit' | 'author'>;
+const textPart = (s: Settings, withAuthor: boolean): Partial<TextPart> => ({
+  show: structuredClone(s.show),
+  font: s.font,
+  fonts: structuredClone(s.fonts),
+  textScale: s.textScale,
+  makerStyle: s.makerStyle,
+  credit: structuredClone(s.credit),
+  ...(withAuthor ? { author: s.author } : {}),
+});
+const isTextDefault = () => JSON.stringify(textPart(settings, false)) === JSON.stringify(textPart(DEFAULTS, false));
+
+function syncResetText() {
+  const same = isTextDefault();
+  $<HTMLButtonElement>('#resetText').disabled = same;
+  $('#resetTextHint').textContent = same ? '文字の設定は初期設定のままです。' : '';
+}
+
+function bindResetText() {
+  const sheet = $('#resetSheet');
+  const close = () => (sheet.hidden = true);
+  $('#resetText').addEventListener('click', () => {
+    $<HTMLInputElement>('#resetAuthor').checked = false;
+    sheet.hidden = false;
+  });
+  $('#resetCancel').addEventListener('click', close);
+  sheet.addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) close();
+  });
+  $('#resetConfirm').addEventListener('click', () => {
+    const withAuthor = $<HTMLInputElement>('#resetAuthor').checked;
+    const backup = textPart(settings, true);
+    Object.assign(settings, structuredClone(textPart(DEFAULTS, withAuthor)));
+    close();
+    update();
+    // 押し間違えたときのために、少しの間「元に戻す」を出す
+    toast('文字の設定を初期設定に戻しました', 6000, {
+      label: '元に戻す',
+      run: () => {
+        Object.assign(settings, backup);
+        update();
+        toast('元の設定に戻しました');
+      },
+    });
+  });
+}
+
 // ---------- 拡大表示 ----------
 
 /** 拡大ボタンをプレビューのすぐ右下に置く（余白が無ければ枠の内側） */

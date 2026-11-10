@@ -204,6 +204,12 @@
           <p class="hint" id="creditHint"></p>
         </details>
 
+        <details open data-tab="text" class="reset-block">
+          <summary>初期設定</summary>
+          <button id="resetText" class="reset-btn">文字の設定を初期設定に戻す…</button>
+          <p class="hint" id="resetTextHint"></p>
+        </details>
+
         <details id="infoPanel" open data-tab="info">
           <summary>この写真の情報（編集可）</summary>
           <div id="exifForm" class="exif-form"></div>
@@ -325,6 +331,16 @@
         <button id="mpRename">名前を変更</button>
         <button id="mpDelete" class="danger">削除</button>
         <button id="mpClose" class="link">閉じる</button>
+      </div>
+    </div>
+
+    <div class="sheet-backdrop" id="resetSheet" hidden>
+      <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="resetTitle">
+        <h2 id="resetTitle">文字の設定を初期設定に戻しますか？</h2>
+        <p>表示する項目・フォント・文字サイズ・メーカー名の表示・クレジットの位置／大きさ／色／フォントが初期設定になります。レイアウトと色はそのままです。</p>
+        <label class="switch"><input type="checkbox" id="resetAuthor" /><span>撮影者名（クレジット）も消す</span></label>
+        <button id="resetConfirm" class="danger-fill">初期設定に戻す</button>
+        <button id="resetCancel" class="link">キャンセル</button>
       </div>
     </div>
 

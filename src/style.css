@@ -523,3 +523,17 @@ body.picking #preview { cursor: crosshair; touch-action: none; outline: 3px soli
 .ce-slider { touch-action: pan-y; }
 .ce-slider input.thumb-only { pointer-events: none; }
 .ce-slider input.thumb-only.dragging::-webkit-slider-thumb { transform: scale(1.15); }
+
+/* 文字の設定を初期設定に戻す */
+.reset-btn {
+  width: 100%; min-height: 40px; border-radius: 10px; border: 1px solid #e3b3b3; background: none; color: #c23c3c;
+  font: inherit; font-size: 13px; cursor: pointer;
+}
+.reset-btn:disabled { border-color: var(--line); color: var(--muted); cursor: default; }
+.sheet-card button.danger-fill { background: #d64545; border-color: #d64545; color: #fff; font-weight: 700; }
+.sheet-card .switch { margin: 4px 0 10px; font-size: 13px; }
+.toast.has-action { display: flex; align-items: center; justify-content: space-between; gap: 14px; width: min(90vw, 380px); }
+.toast button {
+  border: 0; background: none; color: var(--accent); font: inherit; font-weight: 700; padding: 4px 2px; cursor: pointer; white-space: nowrap;
+}
+@media (max-width: 900px) { .reset-btn { min-height: 46px; font-size: 14px; } }
