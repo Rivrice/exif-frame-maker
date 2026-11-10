@@ -412,13 +412,13 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 
 /* ---- 拡大表示 ---- */
 .zoom-btn {
-  position: absolute; width: 40px; height: 40px; border-radius: 50%; border: 0; padding: 0;
+  position: absolute; width: 38px; height: 38px; border-radius: 50%; border: 0; padding: 0;
   display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 2;
   background: rgba(20, 20, 20, .38); color: #fff; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
   transition: background .15s, opacity .15s;
 }
 .zoom-btn:hover { background: rgba(20, 20, 20, .6); }
-.zoom-btn svg { width: 20px; height: 20px; }
+.zoom-btn svg { width: 19px; height: 19px; }
 body.picking .zoom-btn { opacity: 0; pointer-events: none; }
 .viewer { position: fixed; inset: 0; z-index: 50; background: rgba(10, 10, 10, .94); overflow: hidden; touch-action: none; }
 .viewer canvas { position: absolute; left: 0; top: 0; transform-origin: 0 0; box-shadow: 0 8px 40px rgba(0,0,0,.5); background: #fff; }
@@ -478,7 +478,7 @@ body.picking #preview { cursor: crosshair; touch-action: none; outline: 3px soli
   border: 3px solid #fff; box-shadow: 0 4px 14px rgba(0,0,0,.35);
 }
 @media (max-width: 900px) {
-  .zoom-btn { width: 38px; height: 38px; }
+  .zoom-btn { width: 36px; height: 36px; }
   .color-targets button { font-size: 12px; padding: 8px 2px; }
   .color-targets button i { width: 30px; height: 30px; }
   .ce-slider { font-size: 13px; margin: 12px 0 4px; }
