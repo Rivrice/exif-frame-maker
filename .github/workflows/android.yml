@@ -3,13 +3,14 @@ name: Build Android APK
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: android-apk
+  group: android-apk-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -72,7 +73,9 @@ jobs:
         with:
           name: exif-frame-maker-apk
           path: exif-frame-maker.apk
-      - uses: softprops/action-gh-release@v2
+      # リリースの公開は main だけ（PR ではビルドの確認のみ）
+      - if: github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.${{ github.run_number }}
           name: Exif Frame Maker 1.0.${{ github.run_number }}
