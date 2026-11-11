@@ -9,7 +9,7 @@ import { getLogo, logoOrigin, removeUserLogo, setUserLogo } from './logos';
 import { MAKERS } from './makers';
 import { IS_IOS, canvasToBlob, preloadFonts, renderOutput, renderPreview } from './render';
 import type { Colors, Corner, CornerItem, CreditPosition, ExifInfo, FontRole, PhotoItem, Settings } from './types';
-import { IS_NATIVE, nativeSave, nativeShare, onBackButton } from './native';
+import { IS_NATIVE, nativeSave, nativeShare, onBackButton, listenSharedImages } from './native';
 import { FONT_CATALOG, fontInfo, type FontLang } from './fontcatalog';
 import { cleanFamily, importFont, isFontAvailable, loadUserFonts, removeFont, userFonts } from './fonts';
 import { hexToHsl, hslToHex, loadHistory, normalizeHex, pushHistory, rgbToHex } from './colorutil';
@@ -1607,6 +1607,31 @@ if (!IS_NATIVE && import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
 }
 if (IS_NATIVE) document.body.classList.add('native');
+
+// ---------- ほかのアプリから画像を受け取る ----------
+
+// Androidアプリ版：共有メニュー（Photo Tile Maker の「Exif Frame Maker に転送」など）で渡された画像
+void listenSharedImages((files) => addFiles(files));
+
+// ブラウザ版：Photo Tile Maker の「Exif Frame Maker に転送」で開かれたとき、元のタブから画像を受け取る
+const TILE_ORIGINS = ['https://rivrice.github.io'];
+if (!IS_NATIVE && window.opener && new URLSearchParams(location.search).get('from') === 'photo-tile-maker') {
+  const trusted = (o: string) => TILE_ORIGINS.includes(o) || o === location.origin || (import.meta.env.DEV && /^http:\/\/localhost(:\d+)?$/.test(o));
+  const onMsg = (e: MessageEvent) => {
+    if (!trusted(e.origin) || e.source !== window.opener) return;
+    const blob = e.data?.type === 'efm-image' ? e.data.file : null;
+    if (!(blob instanceof Blob) || !/^image\//.test(blob.type)) return;
+    window.removeEventListener('message', onMsg);
+    const file = blob instanceof File ? blob : new File([blob], 'photo-tile.jpg', { type: blob.type });
+    addFiles([file]);
+    (e.source as Window).postMessage({ type: 'efm-received' }, e.origin);
+    // 再読み込みで待ち受けし直さないよう、URL から目印を外す
+    history.replaceState(null, '', location.pathname);
+  };
+  window.addEventListener('message', onMsg);
+  // 準備ができたことを知らせる（画像はまだ受け取っていないので、宛先は限定しない）
+  window.opener.postMessage({ type: 'efm-ready' }, '*');
+}
 
 loadUserFonts().then((list) => {
   if (!list.length) return;
