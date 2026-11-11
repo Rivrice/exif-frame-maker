@@ -74,3 +74,36 @@ export async function nativeSave(files: File[]): Promise<string> {
   }
   return 'Documents/ExifFrameMaker';
 }
+
+interface IncomingImagePlugin {
+  take(): Promise<{ files: { data: string; name: string; mime: string }[] }>;
+  addListener(event: 'received', cb: () => void): Promise<{ remove: () => Promise<void> }>;
+}
+// android/app/src/main/java/.../IncomingImagePlugin.java
+const IncomingImage = registerPlugin<IncomingImagePlugin>('IncomingImage');
+
+/**
+ * Androidアプリ版のみ: ほかのアプリ（Photo Tile Maker・ギャラリーなど）から共有された画像を受け取る。
+ * 起動時に渡された画像と、開いている間に新しく届いた画像の両方を onFiles に渡す。
+ */
+export async function listenSharedImages(onFiles: (files: File[]) => void) {
+  if (!IS_NATIVE || Capacitor.getPlatform() !== 'android') return;
+  const take = async () => {
+    try {
+      const { files } = await IncomingImage.take();
+      if (!files?.length) return;
+      onFiles(
+        files.map((f) => {
+          const bin = atob(f.data);
+          const bytes = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          return new File([bytes], f.name || 'shared.jpg', { type: f.mime || 'image/jpeg' });
+        }),
+      );
+    } catch (e) {
+      console.error(e);
+    }
+  };
+  await IncomingImage.addListener('received', () => void take());
+  await take();
+}
